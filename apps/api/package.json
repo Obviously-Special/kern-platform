@@ -15,7 +15,8 @@
     "@fastify/cors": "^10.0.0",
     "@kern/contracts": "*",
     "dotenv": "^16.4.0",
-    "fastify": "^5.0.0"
+    "fastify": "^5.0.0",
+    "openai": "^7.9.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
