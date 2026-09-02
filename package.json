@@ -1,0 +1,22 @@
+{
+  "name": "kern-platform",
+  "version": "0.1.0",
+  "private": true,
+  "description": "KERN — AI Customer Journey Platform. A managed AI layer for complex customer-facing websites: understand, assist, act, measure, diagnose, improve.",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev:demo-site": "npm run dev -w @kern/demo-site",
+    "dev:api": "npm run dev -w @kern/api",
+    "dev:sdk": "npm run dev -w @kern/sdk",
+    "build": "npm run build -ws --if-present",
+    "typecheck": "npm run typecheck -ws --if-present",
+    "test": "npm run test -ws --if-present",
+    "lint": "npm run lint -ws --if-present"
+  }
+}
