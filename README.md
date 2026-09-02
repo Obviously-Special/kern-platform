@@ -46,7 +46,14 @@ npm run dev:demo-site   # demo site on :3000
 npm run dev:api         # API on :8787
 ```
 
-Set `ANTHROPIC_API_KEY` in `apps/api/.env` to enable real model calls; without it the API runs in mock mode.
+Set `OPENAI_API_KEY` (or `ANTHROPIC_API_KEY`) in `apps/api/.env` to enable real model calls; without either the API runs in mock mode.
+
+## Platform basics (Phase 0)
+
+- **Auth:** every SDK request carries the site's key (`x-kern-site-key`). The API seeds a demo site with the fixed dev key `kern-demo-site-key-v0`; real sites get random keys via `POST /admin/sites`. Admin endpoints are dev-only (no auth yet).
+- **Tenant isolation:** event tenant IDs are stamped server-side from the authenticated site — clients can never self-report their tenant.
+- **Policy engine:** deterministic L0–L4 action decisions with a kill switch; the LLM proposes, this layer decides.
+- **Observability:** one structured log line per request (latency) and per gateway call (tokens).
 
 ## Scripts
 
