@@ -10,8 +10,21 @@ export interface GatewayRequest {
   messages: ChatMessage[];
 }
 
+/** Token/usage trace for observability (doc 3 Phase 0: "token traces"). */
+export interface ModelUsage {
+  provider: string;
+  model: string;
+  inputTokens?: number;
+  outputTokens?: number;
+}
+
+export interface GatewayReply {
+  text: string;
+  usage?: ModelUsage;
+}
+
 export interface ModelGateway {
   /** Human-readable provider + model, e.g. "anthropic:claude-opus-5" or "mock". */
   readonly name: string;
-  chat(req: GatewayRequest): Promise<string>;
+  chat(req: GatewayRequest): Promise<GatewayReply>;
 }

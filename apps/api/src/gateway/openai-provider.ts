@@ -1,7 +1,6 @@
 import OpenAI from 'openai';
-import type { GatewayRequest, ModelGateway } from './types.js';
+import type { GatewayReply, GatewayRequest, ModelGateway } from './types';
 
-const client = new OpenAI(); // resolves OPENAI_API_KEY from env
 const MODEL = process.env.KERN_OPENAI_MODEL ?? 'gpt-4o';
 
 /**
@@ -13,9 +12,15 @@ const MODEL = process.env.KERN_OPENAI_MODEL ?? 'gpt-4o';
  */
 export class OpenAIGateway implements ModelGateway {
   readonly name = `openai:${MODEL}`;
+  // Lazy: the OpenAI SDK throws at construction without a key, so the
+  // client is only built when this provider is actually selected.
+  private _client: OpenAI | null = null;
+  private get client(): OpenAI {
+    return (this._client ??= new OpenAI()); // resolves OPENAI_API_KEY from env
+  }
 
-  async chat({ system, messages }: GatewayRequest): Promise<string> {
-    const response = await client.chat.completions.create({
+  async chat({ system, messages }: GatewayRequest): Promise<GatewayReply> {
+    const response = await this.client.chat.completions.create({
       model: MODEL,
       max_tokens: 2048,
       messages: [
@@ -24,11 +29,21 @@ export class OpenAIGateway implements ModelGateway {
       ],
     });
 
+    const usage = {
+      provider: 'openai',
+      model: MODEL,
+      inputTokens: response.usage?.prompt_tokens,
+      outputTokens: response.usage?.completion_tokens,
+    };
+
     const content = response.choices[0]?.message.content?.trim();
     if (!content) {
       // Empty or refused completion — degrade gracefully, never pretend
-      return "I can't help with that request. Is there something else I can help you with on this page?";
+      return {
+        text: "I can't help with that request. Is there something else I can help you with on this page?",
+        usage,
+      };
     }
-    return content;
+    return { text: content, usage };
   }
 }

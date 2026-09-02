@@ -6,6 +6,8 @@ import type { SessionId, SiteId } from '@kern/contracts';
 export interface KernConfig {
   apiUrl: string;
   siteId: SiteId;
+  /** Site key issued by the KERN platform (like a Stripe public key). */
+  siteKey: string;
 }
 
 export interface KernHandle {
@@ -48,7 +50,12 @@ export function initKern(config: KernConfig): KernHandle {
     sessionStorage.setItem('kern_session_id', sessionId);
   }
 
-  const apiConfig: KernApiConfig = { apiUrl: config.apiUrl, siteId: config.siteId, sessionId };
+  const apiConfig: KernApiConfig = {
+    apiUrl: config.apiUrl,
+    siteId: config.siteId,
+    siteKey: config.siteKey,
+    sessionId,
+  };
   const widget = new KernWidget(apiConfig);
 
   // page_view on mount

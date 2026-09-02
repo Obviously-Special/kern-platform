@@ -176,14 +176,16 @@ export type KernEventType = KernEvent['type'];
 
 /**
  * The envelope every stored event travels in (doc 3 §5.2).
- * tenant_id is required for strict tenant isolation in the warehouse.
+ * tenant_id is SERVER-AUTHORITATIVE: optional at the SDK boundary, stamped
+ * by the API from the authenticated site — the client never self-reports
+ * its tenant, so cross-tenant events are structurally impossible.
  */
 export const EventEnvelopeSchema = z.object({
   event_id: z.string().min(1),
   type: z.string().min(1), // KernEventType — kept loose here; KernEventSchema validates the payload
   session_id: z.string().min(1),
   site_id: z.string().min(1),
-  tenant_id: z.string().min(1),
+  tenant_id: z.string().min(1).optional(),
   occurred_at: z.string().datetime(),
   data: z.record(z.string(), z.unknown()),
 });

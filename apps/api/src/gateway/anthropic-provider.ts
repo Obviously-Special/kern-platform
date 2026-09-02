@@ -1,7 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
-import type { GatewayRequest, ModelGateway } from './types.js';
+import type { GatewayReply, GatewayRequest, ModelGateway } from './types';
 
-const client = new Anthropic(); // resolves ANTHROPIC_API_KEY / auth profile from env
 const MODEL = process.env.KERN_MODEL ?? 'claude-opus-5';
 
 /**
@@ -15,9 +14,15 @@ const MODEL = process.env.KERN_MODEL ?? 'claude-opus-5';
  */
 export class AnthropicGateway implements ModelGateway {
   readonly name = `anthropic:${MODEL}`;
+  // Lazy for symmetry with the OpenAI provider; auth resolves from env
+  // (ANTHROPIC_API_KEY or an ant auth profile) at first use.
+  private _client: Anthropic | null = null;
+  private get client(): Anthropic {
+    return (this._client ??= new Anthropic());
+  }
 
-  async chat({ system, messages }: GatewayRequest): Promise<string> {
-    const response = await client.beta.messages.create({
+  async chat({ system, messages }: GatewayRequest): Promise<GatewayReply> {
+    const response = await this.client.beta.messages.create({
       model: MODEL,
       max_tokens: 2048,
       betas: ['server-side-fallback-2026-07-01'],
@@ -29,8 +34,18 @@ export class AnthropicGateway implements ModelGateway {
       messages: messages.map((m) => ({ role: m.role, content: m.content })),
     });
 
+    const usage = {
+      provider: 'anthropic',
+      model: MODEL,
+      inputTokens: response.usage.input_tokens,
+      outputTokens: response.usage.output_tokens,
+    };
+
     if (response.stop_reason === 'refusal') {
-      return "I can't help with that request. Is there something else I can help you with on this page?";
+      return {
+        text: "I can't help with that request. Is there something else I can help you with on this page?",
+        usage,
+      };
     }
 
     const text = response.content
@@ -39,6 +54,6 @@ export class AnthropicGateway implements ModelGateway {
       .join('\n')
       .trim();
 
-    return text || "I'm not sure how to help with that yet.";
+    return { text: text || "I'm not sure how to help with that yet.", usage };
   }
 }

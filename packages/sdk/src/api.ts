@@ -10,8 +10,15 @@ import type {
 export interface KernApiConfig {
   apiUrl: string;
   siteId: SiteId;
+  /** Site key issued by the KERN platform — authenticates every request. */
+  siteKey: string;
   sessionId: SessionId;
 }
+
+const authHeaders = (config: KernApiConfig) => ({
+  'Content-Type': 'application/json',
+  'x-kern-site-key': config.siteKey,
+});
 
 export async function postChat(config: KernApiConfig, message: string, history: ChatRequest['history'], pageContext: ChatRequest['page_context']): Promise<ChatResponse> {
   const body: ChatRequest = {
@@ -23,7 +30,7 @@ export async function postChat(config: KernApiConfig, message: string, history: 
   };
   const res = await fetch(`${config.apiUrl}/chat`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: authHeaders(config),
     body: JSON.stringify(body),
   });
   if (!res.ok) {
@@ -34,18 +41,18 @@ export async function postChat(config: KernApiConfig, message: string, history: 
 
 /** Fire-and-forget event emission — never blocks the page. */
 export function postEvent(config: KernApiConfig, event: KernEvent): void {
+  // tenant_id is server-stamped from the authenticated site key
   const envelope: EventEnvelope = {
     event_id: crypto.randomUUID(),
     type: event.type,
     session_id: config.sessionId,
     site_id: config.siteId,
-    tenant_id: config.siteId, // v0: one tenant per site; real tenant mapping arrives with the tenant service
     occurred_at: new Date().toISOString(),
     data: event.data,
   };
   fetch(`${config.apiUrl}/events`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: authHeaders(config),
     body: JSON.stringify(envelope),
     keepalive: true,
   }).catch(() => {

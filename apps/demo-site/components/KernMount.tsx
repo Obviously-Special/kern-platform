@@ -13,6 +13,9 @@ export default function KernMount() {
       initKern({
         apiUrl: process.env.NEXT_PUBLIC_KERN_API_URL ?? 'http://localhost:8787',
         siteId: 'demo-bergblick',
+        // Fixed development key seeded by the API at boot (see apps/api/src/tenants/service.ts).
+        // Real customers receive a per-site key from their tenant configuration.
+        siteKey: process.env.NEXT_PUBLIC_KERN_SITE_KEY ?? 'kern-demo-site-key-v0',
       });
     });
   }, []);

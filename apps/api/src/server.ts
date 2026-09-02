@@ -1,24 +1,11 @@
 import 'dotenv/config';
-import Fastify from 'fastify';
-import cors from '@fastify/cors';
-import { chatRoutes } from './routes/chat';
-import { eventRoutes } from './routes/events';
-import { adminRoutes } from './routes/admin';
+import { buildApp } from './app';
 import { syncKnowledge } from './knowledge/sync';
+import { DEMO_SITE_KEY } from './tenants/service';
 
 const PORT = Number(process.env.PORT ?? 8787);
 
-const app = Fastify({ logger: true });
-
-// v0: dev-permissive CORS so the demo site (localhost:3000) can call us.
-// Tighten to an explicit origin allowlist before the first real customer.
-await app.register(cors, { origin: true });
-
-app.get('/health', async () => ({ status: 'ok', time: new Date().toISOString() }));
-
-await app.register(chatRoutes);
-await app.register(eventRoutes);
-await app.register(adminRoutes);
+const app = await buildApp();
 
 // Best-effort knowledge sync at boot — the demo site may not be running yet.
 try {
@@ -27,6 +14,8 @@ try {
 } catch (err) {
   app.log.warn({ err }, 'knowledge sync failed at boot — retry with POST /admin/knowledge/sync');
 }
+
+app.log.info({ demo_site_key: DEMO_SITE_KEY }, 'demo site key (development only)');
 
 try {
   await app.listen({ port: PORT, host: '0.0.0.0' });

@@ -52,7 +52,7 @@ describe('event envelope', () => {
     expect(result.success).toBe(true);
   });
 
-  it('rejects a missing tenant_id — no cross-tenant events, ever', () => {
+  it('accepts envelopes without tenant_id — the API stamps it server-side from the authenticated site', () => {
     const result = EventEnvelopeSchema.safeParse({
       event_id: 'evt_1',
       type: 'page_view',
@@ -61,7 +61,7 @@ describe('event envelope', () => {
       occurred_at: '2026-09-02T20:00:00Z',
       data: {},
     });
-    expect(result.success).toBe(false);
+    expect(result.success).toBe(true);
   });
 });
 

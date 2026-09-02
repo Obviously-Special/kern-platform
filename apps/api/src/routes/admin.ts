@@ -1,6 +1,9 @@
 import type { FastifyInstance } from 'fastify';
+import type { PageContext, PermissionLevel } from '@kern/contracts';
 import { syncKnowledge } from '../knowledge/sync';
 import { getAllChunks, stats } from '../knowledge/store';
+import { checkAction } from '../policy/service';
+import { eventCount } from '../event-buffer';
 
 /**
  * v0 admin endpoints — dev aids, clearly temporary.
@@ -46,5 +49,21 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       },
     );
     return { terms, retrieved: results.map((r) => ({ heading: r.chunk.heading, score: r.score, matched: r.matchedTerms })) };
+  });
+
+  // v0 dev aid — sanity-check that events are flowing, scoped per tenant
+  app.get('/admin/events/count', async (req) => {
+    const { tenant_id } = (req.query ?? {}) as { tenant_id?: string };
+    return { count: eventCount(tenant_id) };
+  });
+
+  // v0 dev aid — exercise the deterministic action policy (doc 3 §10)
+  app.get('/admin/policy/check', async (req) => {
+    const { site_id, level } = (req.query ?? {}) as { site_id?: string; level?: string };
+    const valid = ['read', 'guide', 'reversible', 'transactional', 'sensitive'];
+    if (!site_id || !level || !valid.includes(level)) {
+      return { error: 'usage: /admin/policy/check?site_id=…&level=read|guide|reversible|transactional|sensitive' };
+    }
+    return { site_id, level, decision: checkAction(site_id, level as PermissionLevel) };
   });
 }

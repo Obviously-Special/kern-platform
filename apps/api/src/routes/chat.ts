@@ -14,12 +14,20 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
   const gateway = createGateway();
 
   app.post('/chat', async (req, reply) => {
+    const site = req.kernSite;
+    if (!site) {
+      return reply.status(401).send({ error: 'unauthorized' });
+    }
+
     const parsed = ChatRequestSchema.safeParse(req.body);
     if (!parsed.success) {
       return reply.status(400).send({
         error: 'invalid_request',
         details: parsed.error.flatten(),
       });
+    }
+    if (parsed.data.site_id !== site.site.site_id) {
+      return reply.status(403).send({ error: 'site_id_does_not_match_authenticated_site' });
     }
 
     const { page_context, message, history } = parsed.data;
@@ -28,10 +36,13 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
     const messages = [...(history ?? []), { role: 'user' as const, content: message }];
 
     try {
-      const replyText = await gateway.chat({ system, messages });
+      const result = await gateway.chat({ system, messages });
+      if (result.usage) {
+        app.log.info({ ...result.usage, site_id: site.site.site_id }, 'gateway call');
+      }
       return ChatResponseSchema.parse({
         message_id: randomUUID(),
-        reply: replyText,
+        reply: result.text,
         mode: 'answer',
         citations: buildCitations(retrieved),
       });
