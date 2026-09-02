@@ -8,6 +8,7 @@
 export * from './ids';
 export * from './platform';
 export * from './page-context';
+export * from './page-classifier';
 export * from './intent';
 export * from './action';
 export * from './outcome';

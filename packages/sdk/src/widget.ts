@@ -46,6 +46,7 @@ const CSS = `
 .msg { max-width: 85%; padding: 10px 12px; border-radius: 12px; font-size: 13.5px; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word; }
 .msg.user { align-self: flex-end; background: #111111; color: #ffffff; border-bottom-right-radius: 4px; }
 .msg.assistant { align-self: flex-start; background: #F6F4EF; color: #111111; border-bottom-left-radius: 4px; }
+.sources { align-self: flex-start; font-size: 11px; color: #8A8577; padding: 0 12px 4px; margin-top: -6px; }
 .typing { align-self: flex-start; color: #8A8577; font-size: 12.5px; padding: 4px 12px; }
 
 .inputrow { display: flex; gap: 8px; padding: 12px; border-top: 1px solid #F1EFE9; }
@@ -148,11 +149,17 @@ export class KernWidget {
     this.pageEl.textContent = `You're on: ${ctx.page_type === 'unknown' ? 'this page' : ctx.page_type}`;
   }
 
-  private addMessage(role: 'user' | 'assistant', content: string) {
+  private addMessage(role: 'user' | 'assistant', content: string, citations?: string[]) {
     const el = document.createElement('div');
     el.className = `msg ${role}`;
     el.textContent = content;
     this.messagesEl.appendChild(el);
+    if (citations && citations.length > 0) {
+      const sources = document.createElement('div');
+      sources.className = 'sources';
+      sources.textContent = `Sources: ${citations.join(' · ')}`;
+      this.messagesEl.appendChild(sources);
+    }
     this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
   }
 
@@ -181,7 +188,7 @@ export class KernWidget {
       const pageContext = capturePageContext();
       const res: ChatResponse = await postChat(this.config, text, this.history.slice(0, -1), pageContext);
       typing.remove();
-      this.addMessage('assistant', res.reply);
+      this.addMessage('assistant', res.reply, res.citations);
       this.history.push({ role: 'assistant', content: res.reply });
       postEvent(this.config, {
         type: 'answer_shown',

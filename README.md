@@ -16,11 +16,20 @@
 ```
 apps/
   demo-site/     # Stand-in customer: complex booking site with deliberate friction (Next.js)
-  api/           # KERN backend: tenant routing, orchestrator, model gateway, event pipeline (Fastify)
+  api/           # KERN backend: chat orchestrator, knowledge layer, model gateway, event pipeline (Fastify)
 packages/
-  contracts/     # Shared event schema v1 + zod validation — the event-first moat
-  sdk/           # Browser SDK: page context capture + chat/guidance widget (script tag)
+  contracts/     # Shared event schema v1 + zod validation + page classifier — the event-first moat
+  sdk/           # Browser SDK: page context capture + chat widget with citations (script tag)
 ```
+
+## Knowledge layer (v1)
+
+The assistant knows the site two ways:
+
+1. **Crawler** — indexes the site's public content (headings, sections, FAQ pairs, tables) at boot and on `POST /admin/knowledge/sync`
+2. **Page map** (`apps/api/src/knowledge/page-map.ts`) — curated business facts not extractable from HTML (prices behind flows, business rules). Per real customer this becomes tenant configuration, never code.
+
+A deterministic retriever selects relevant excerpts per question + page and injects them into the prompt with provenance; answers carry citations (shown in the widget). Upgrade path: embeddings/hybrid retrieval when content volume justifies it.
 
 ## Guiding principles
 

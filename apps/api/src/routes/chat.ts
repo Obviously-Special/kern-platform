@@ -1,12 +1,14 @@
 import { randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { ChatRequestSchema, ChatResponseSchema, type PageContext } from '@kern/contracts';
-import { createGateway } from '../gateway/index.js';
+import { createGateway } from '../gateway/index';
+import { getAllChunks } from '../knowledge/store';
+import { retrieve, type RetrievedChunk } from '../knowledge/retriever';
 
 /**
- * The walking-skeleton chat route: page context in, page-aware answer out.
- * The orchestrator (intent, tool selection, guide/ask/handoff modes) is
- * Phase 1; v0 always answers in "answer" mode.
+ * The walking-skeleton chat route: page context + company knowledge in,
+ * grounded page-aware answer out. The orchestrator (intent, tool
+ * selection, guide/ask/handoff modes) is Phase 1; v0 always answers.
  */
 export async function chatRoutes(app: FastifyInstance): Promise<void> {
   const gateway = createGateway();
@@ -21,7 +23,8 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
     }
 
     const { page_context, message, history } = parsed.data;
-    const system = buildSystemPrompt(page_context);
+    const retrieved = retrieve(getAllChunks(), message, page_context);
+    const system = buildSystemPrompt(page_context, retrieved);
     const messages = [...(history ?? []), { role: 'user' as const, content: message }];
 
     try {
@@ -30,6 +33,7 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
         message_id: randomUUID(),
         reply: replyText,
         mode: 'answer',
+        citations: buildCitations(retrieved),
       });
     } catch (err) {
       app.log.error({ err }, 'gateway call failed');
@@ -39,10 +43,10 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
 }
 
 /**
- * The v0 system prompt (doc 2 §3 interaction rules). Compact page context
- * embedded as structured text so the model can reference real elements.
+ * v0 system prompt (doc 2 §3 interaction rules): live page context +
+ * retrieved company knowledge, each excerpt carrying its source.
  */
-function buildSystemPrompt(ctx: PageContext): string {
+function buildSystemPrompt(ctx: PageContext, retrieved: RetrievedChunk[]): string {
   const ctxJson = JSON.stringify(
     {
       url: ctx.url,
@@ -60,6 +64,18 @@ function buildSystemPrompt(ctx: PageContext): string {
     0,
   );
 
+  const knowledgeSection =
+    retrieved.length > 0
+      ? [
+          '',
+          'COMPANY KNOWLEDGE (relevant excerpts — ground answers in these, and name the source naturally, e.g. "per our FAQ" or "according to our policy"):',
+          ...retrieved.map(
+            (r, i) =>
+              `[${i + 1}] ${r.chunk.heading} — source: ${r.chunk.url}\n${r.chunk.text}`,
+          ),
+        ].join('\n')
+      : '';
+
   return [
     'You are KERN, the intelligent assistant embedded in this website.',
     'Your job is to help the visitor complete their task on the current page.',
@@ -68,14 +84,30 @@ function buildSystemPrompt(ctx: PageContext): string {
     '- Anchor every answer to the current page context below.',
     '- Prefer moving the visitor forward over long explanations.',
     '- Only reference page elements that are listed in the context. Never invent buttons or links.',
-    '- If the page context is insufficient, ask ONE targeted clarifying question.',
+    '- If COMPANY KNOWLEDGE covers the question, answer from it and name the source. Never invent policies, prices or facts.',
+    '- If COMPANY KNOWLEDGE does not cover the question, say the website does not provide that information and offer a safe next step.',
     '- If you see visible_errors, acknowledge them and give the concrete next step.',
-    '- Match the visitor\'s language.',
+    "- Match the visitor's language.",
     '',
     'CURRENT_PAGE_TYPE: ' + ctx.page_type,
     'CURRENT_URL: ' + ctx.url,
     '',
     'Current page context (JSON):',
     ctxJson,
+    knowledgeSection,
   ].join('\n');
+}
+
+/** Cited sources, deduped, in retrieval order. */
+function buildCitations(retrieved: RetrievedChunk[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const r of retrieved) {
+    const label = `${r.chunk.url} — ${r.chunk.heading}`;
+    if (!seen.has(label)) {
+      seen.add(label);
+      out.push(label);
+    }
+  }
+  return out.slice(0, 10);
 }
