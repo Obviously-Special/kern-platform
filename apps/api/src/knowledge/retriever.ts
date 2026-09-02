@@ -6,9 +6,14 @@ import type { KnowledgeChunk } from './types';
  * source registry" — lexical is the deterministic first half; embeddings
  * join as the second half when content volume justifies it).
  *
- * Scoring is transparent and explainable: term hits + heading bonus +
- * same-page bonus + route bonus. Every score has a mechanical meaning —
- * this matters for the "explainable calculations" principle.
+ * Scoring is term-first and explainable:
+ * - a chunk enters contention ONLY if at least one question term matches it
+ * - term hits score 1, heading hits score +2
+ * - the page-type/route bonus is a tiebreaker (max +2) — page proximity
+ *   must never beat an actual term match
+ * - doc expansion: when a chunk from a page is selected, up to 2 sibling
+ *   chunks from the same page join it, so page-summary questions
+ *   ("what will I see on the pricing page") receive the page's content
  */
 const STOPWORDS = new Set([
   'the', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been', 'do', 'does',
@@ -33,16 +38,23 @@ export interface RetrievedChunk {
   matchedTerms: string[];
 }
 
+function pageBonus(chunk: KnowledgeChunk, pageContext: PageContext): number {
+  let bonus = 0;
+  if (chunk.pageTypes.includes(pageContext.page_type)) bonus += 1;
+  if (pageContext.route && pageContext.route !== '/' && chunk.url.includes(pageContext.route)) bonus += 1;
+  return bonus;
+}
+
 export function retrieve(
   chunks: KnowledgeChunk[],
   question: string,
   pageContext: PageContext,
-  limit = 4,
-  maxTotalChars = 3000,
+  limit = 5,
+  maxTotalChars = 3500,
 ): RetrievedChunk[] {
   const qTerms = tokenize(question);
 
-  const scored: RetrievedChunk[] = chunks.map((chunk) => {
+  const scored = chunks.map((chunk) => {
     const text = `${chunk.heading} ${chunk.text}`.toLowerCase();
     const matched: string[] = [];
     let score = 0;
@@ -53,25 +65,48 @@ export function retrieve(
         if (chunk.heading.toLowerCase().includes(term)) score += 2; // heading hits weigh more
       }
     }
-    if (chunk.pageTypes.includes(pageContext.page_type)) score += 3; // same page as the visitor
-    if (pageContext.route && pageContext.route !== '/' && chunk.url.includes(pageContext.route)) score += 1;
     return { chunk, score, matchedTerms: matched };
   });
 
-  const withHits = scored.filter((r) => r.score > 0);
+  const withHits = scored.filter((r) => r.matchedTerms.length > 0);
   if (withHits.length === 0) {
-    // No term matched — fall back to knowledge bound to the visitor's page
+    // No term matched anywhere — fall back to knowledge bound to the visitor's page
     return chunks
       .filter((c) => c.pageTypes.includes(pageContext.page_type))
       .slice(0, limit)
       .map((chunk) => ({ chunk, score: 0, matchedTerms: [] }));
   }
 
-  withHits.sort((a, b) => b.score - a.score);
+  withHits.sort(
+    (a, b) => b.score - a.score || pageBonus(b.chunk, pageContext) - pageBonus(a.chunk, pageContext),
+  );
+
+  // At most 2 primary chunks per doc, then expand each with up to 2
+  // siblings from the same page so the whole page context travels together.
+  const selected: RetrievedChunk[] = [];
+  const perDoc = new Map<string, number>();
+  for (const r of withHits) {
+    if (selected.length >= limit) break;
+    if ((perDoc.get(r.chunk.docId) ?? 0) >= 2) continue;
+    selected.push(r);
+    perDoc.set(r.chunk.docId, (perDoc.get(r.chunk.docId) ?? 0) + 1);
+  }
+
+  const selectedIds = new Set(selected.map((r) => r.chunk.id));
+  for (const r of [...selected]) {
+    if (selected.length >= limit) break;
+    const siblings = chunks.filter((c) => c.docId === r.chunk.docId && !selectedIds.has(c.id));
+    for (const sibling of siblings.slice(0, 2)) {
+      if (selected.length >= limit) break;
+      selected.push({ chunk: sibling, score: 0, matchedTerms: [] });
+      selectedIds.add(sibling.id);
+    }
+  }
+
+  // Char budget — keep the prompt lean
   const out: RetrievedChunk[] = [];
   let totalChars = 0;
-  for (const r of withHits) {
-    if (out.length >= limit) break;
+  for (const r of selected) {
     if (totalChars + r.chunk.text.length > maxTotalChars) continue;
     out.push(r);
     totalChars += r.chunk.text.length;

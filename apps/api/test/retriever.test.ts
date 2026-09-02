@@ -79,10 +79,58 @@ describe('retrieve', () => {
     expect(fallback.map((r) => r.chunk.heading)).toEqual(['Booking facts']);
   });
 
-  it('respects the chunk limit', () => {
+  it('never exceeds the given limit, including doc expansion', () => {
     const many = Array.from({ length: 10 }, (_, i) =>
       chunk({ heading: `Policy ${i}`, text: `Cancellation details for policy ${i}.` }),
     );
-    expect(retrieve(many, 'cancellation', pageContext())).toHaveLength(4);
+    expect(retrieve(many, 'cancellation', pageContext(), 4).length).toBeLessThanOrEqual(4);
+    expect(retrieve(many, 'cancellation', pageContext()).length).toBeLessThanOrEqual(5);
+  });
+
+  it('REGRESSION: a term match on another page beats zero-match chunks on the current page', () => {
+    // The "pricing" bug: home-bound chunks used to get a page bonus that
+    // tied with a real "pricing" match on the pricing page and crowded it out.
+    const homeChunks = [
+      chunk({ heading: 'Certified guides', text: 'Every tour is led by a certified guide.', pageTypes: ['home'], url: 'http://localhost:3000/' }),
+      chunk({ heading: 'Small groups', text: 'Maximum 8 guests per tour.', pageTypes: ['home'], url: 'http://localhost:3000/' }),
+    ];
+    const pricingChunk = chunk({
+      heading: 'Pricing',
+      text: 'Simple per-person rates for all tours and experiences.',
+      pageTypes: ['pricing'],
+      url: 'http://localhost:3000/pricing',
+    });
+    const result = retrieve([...homeChunks, pricingChunk], 'pricing', pageContext('home', '/'));
+    expect(result[0]?.chunk.heading).toBe('Pricing');
+    expect(result.some((r) => r.chunk.heading === 'Pricing')).toBe(true);
+  });
+
+  it('expands selected chunks with siblings from the same page', () => {
+    const intro = chunk({
+      heading: 'Pricing',
+      text: 'Simple per-person rates for all tours.',
+      pageTypes: ['pricing'],
+      url: 'http://localhost:3000/pricing',
+      docId: 'pricing-doc',
+    });
+    const row1 = chunk({
+      heading: 'Eiger Panorama Hike (table row)',
+      text: 'Eiger Panorama Hike | CHF 89 | CHF 159',
+      pageTypes: ['pricing'],
+      url: 'http://localhost:3000/pricing',
+      docId: 'pricing-doc',
+    });
+    const row2 = chunk({
+      heading: 'Tandem Paragliding (table row)',
+      text: 'Tandem Paragliding | CHF 190 | CHF 240',
+      pageTypes: ['pricing'],
+      url: 'http://localhost:3000/pricing',
+      docId: 'pricing-doc',
+    });
+    const result = retrieve([intro, row1, row2], 'pricing', pageContext('home', '/'));
+    const headings = result.map((r) => r.chunk.heading);
+    expect(headings).toContain('Pricing');
+    expect(headings).toContain('Eiger Panorama Hike (table row)');
+    expect(headings).toContain('Tandem Paragliding (table row)');
   });
 });
