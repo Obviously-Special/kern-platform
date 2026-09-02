@@ -5,12 +5,12 @@
  * taxonomy plus configurable dimensions"). Extend carefully; renaming an
  * event type is a data migration, not a refactor.
  */
-export * from './ids.js';
-export * from './platform.js';
-export * from './page-context.js';
-export * from './intent.js';
-export * from './action.js';
-export * from './outcome.js';
-export * from './friction.js';
-export * from './events.js';
-export * from './chat.js';
+export * from './ids';
+export * from './platform';
+export * from './page-context';
+export * from './intent';
+export * from './action';
+export * from './outcome';
+export * from './friction';
+export * from './events';
+export * from './chat';

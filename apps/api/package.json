@@ -6,12 +6,12 @@
   "description": "KERN backend — tenant routing, orchestrator, model gateway, event pipeline",
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "start": "node dist/server.js",
-    "build": "tsc -p tsconfig.build.json",
+    "start": "tsx src/server.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.123.0",
     "@fastify/cors": "^10.0.0",
     "@kern/contracts": "*",
     "dotenv": "^16.4.0",

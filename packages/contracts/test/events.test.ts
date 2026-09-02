@@ -5,7 +5,7 @@ import {
   EventEnvelopeSchema,
   KernEventSchema,
   PageContextSchema,
-} from '../src/index.js';
+} from '../src/index';
 
 describe('event taxonomy', () => {
   it('accepts a valid page_view event', () => {

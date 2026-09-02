@@ -1,0 +1,8 @@
+# Normalize line endings in the repo (LF); working copies may use CRLF on Windows
+* text=auto eol=lf
+
+# Binaries stay untouched
+*.docx binary
+*.jpeg binary
+*.jpg binary
+*.png binary

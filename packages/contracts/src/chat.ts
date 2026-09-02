@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { PageContextSchema } from './page-context.js';
+import { PageContextSchema } from './page-context';
 
 /**
  * Walking-skeleton API contract: POST /chat.
