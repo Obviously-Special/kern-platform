@@ -1,8 +1,9 @@
-import type { ChatMessage, ChatResponse, GuideTarget } from '@kern/contracts';
+import type { ChatMessage, ChatResponse, GuideTarget, ProposedAction } from '@kern/contracts';
 import { capturePageContext, getElementByRef } from './context';
 import { formatMarkdown } from './format';
 import { pulseElement } from './highlight';
-import { postChat, postEvent, type KernApiConfig } from './api';
+import { executeAction, postChat, postEvent, reportActionResult, type KernApiConfig } from './api';
+import { executeBrowserAction } from './actions';
 
 /**
  * The customer-facing chat widget.
@@ -66,6 +67,17 @@ const CSS = `
   padding: 0 16px; font-weight: 650; font-size: 13.5px; cursor: pointer;
 }
 .send:disabled { opacity: 0.5; cursor: default; }
+
+/* Action confirmation cards (doc 3 §10 confirmation UX) */
+.card { margin: 2px 12px; border: 1px solid #D9D6CF; border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; background: #ffffff; }
+.card .label { font-size: 13px; color: #111111; }
+.card .row { display: flex; gap: 8px; }
+.card button { font-size: 12.5px; font-weight: 650; border-radius: 8px; padding: 6px 12px; cursor: pointer; }
+.card .do { background: #C0FF43; color: #111111; border: none; }
+.card .skip { background: none; border: 1px solid #D9D6CF; color: #6b6659; }
+.card button:disabled { opacity: 0.5; cursor: default; }
+.outcome { font-size: 12.5px; padding: 0 12px 10px; color: #2f5d46; }
+.outcome.error { color: #b33232; }
 `;
 
 export class KernWidget {
@@ -178,6 +190,82 @@ export class KernWidget {
     this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
   }
 
+  private appendOutcome(text: string, isError = false) {
+    const el = document.createElement('div');
+    el.className = isError ? 'outcome error' : 'outcome';
+    el.textContent = text;
+    this.messagesEl.appendChild(el);
+    this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
+  }
+
+  /** Confirmation card — "Do it" / "Skip" (doc 3 §10 confirmation UX). */
+  private renderActionCard(action: ProposedAction) {
+    const card = document.createElement('div');
+    card.className = 'card';
+    const label = document.createElement('div');
+    label.className = 'label';
+    label.textContent = action.label;
+    const row = document.createElement('div');
+    row.className = 'row';
+    const doBtn = document.createElement('button');
+    doBtn.className = 'do';
+    doBtn.textContent = 'Do it';
+    const skipBtn = document.createElement('button');
+    skipBtn.className = 'skip';
+    skipBtn.textContent = 'Skip';
+    row.append(doBtn, skipBtn);
+    card.append(label, row);
+    this.messagesEl.appendChild(card);
+    this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
+
+    doBtn.addEventListener('click', () => void this.runAction(action, card));
+    skipBtn.addEventListener('click', () => {
+      doBtn.disabled = true;
+      skipBtn.disabled = true;
+      void reportActionResult(this.config, {
+        action_id: action.action_id,
+        session_id: this.config.sessionId,
+        result: 'cancelled',
+      });
+      card.remove();
+      this.appendOutcome(`Skipped: ${action.label}`);
+    });
+  }
+
+  /** Runs a confirmed action through the broker and reports the outcome. */
+  private async runAction(action: ProposedAction, card: HTMLDivElement | null) {
+    const markBusy = (busy: boolean) => {
+      if (card) card.querySelectorAll('button').forEach((b) => (b.disabled = busy));
+    };
+    markBusy(true);
+    postEvent(this.config, { type: 'action_started', data: { action_id: action.action_id } });
+    try {
+      const execution = await executeAction(this.config, action.action_id);
+      let outcome: string;
+      let isError = false;
+
+      if (execution.disposition === 'execute_locally') {
+        const report = executeBrowserAction(execution.action, this.config.sessionId);
+        await reportActionResult(this.config, report);
+        isError = report.result !== 'succeeded';
+        outcome = isError
+          ? `✗ ${action.label} — ${report.error ?? 'failed'}.`
+          : `✓ ${action.label} — done.`;
+      } else {
+        isError = !execution.result.ok;
+        const ref = execution.result.data?.booking_ref;
+        outcome = isError
+          ? `✗ ${action.label} — ${execution.result.error ?? 'failed'}.`
+          : `✓ ${action.label} — done${ref ? ` (reference ${ref})` : ''}.`;
+      }
+      card?.remove();
+      this.appendOutcome(outcome, isError);
+    } catch (err) {
+      card?.remove();
+      this.appendOutcome(`✗ ${action.label} — could not execute (${(err as Error).message}).`, true);
+    }
+  }
+
   /**
    * Guide mode: highlight the target element in the host page with the
    * signal-green outline and scroll it into view (doc 2 §3: "visual focus
@@ -229,6 +317,13 @@ export class KernWidget {
       typing.remove();
       this.addMessage('assistant', res.reply, res.citations);
       if (res.guide) this.guideTo(res.guide);
+      for (const action of res.actions ?? []) {
+        if (action.decision === 'allowed') {
+          void this.runAction(action, null); // policy already allows it — no card
+        } else {
+          this.renderActionCard(action);
+        }
+      }
       this.history.push({ role: 'assistant', content: res.reply });
       postEvent(this.config, {
         type: 'answer_shown',

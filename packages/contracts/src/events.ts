@@ -170,6 +170,8 @@ export const KernEventSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('action_succeeded'), data: ActionSucceededEventDataSchema }),
   z.object({ type: z.literal('action_failed'), data: ActionFailedEventDataSchema }),
 
+  z.object({ type: z.literal('action_cancelled'), data: z.object({ action_id: z.string().min(1) }) }),
+
   z.object({ type: z.literal('repeat_question'), data: RepeatQuestionEventDataSchema }),
   z.object({ type: z.literal('dead_end'), data: DeadEndEventDataSchema }),
   z.object({ type: z.literal('error_seen'), data: ErrorSeenEventDataSchema }),

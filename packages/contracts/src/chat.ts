@@ -41,11 +41,38 @@ export const GuideTargetSchema = z
   });
 export type GuideTarget = z.infer<typeof GuideTargetSchema>;
 
+/**
+ * A proposed action the visitor may confirm (doc 3 §10: the LLM proposes,
+ * the policy layer decides). Denied proposals never reach the SDK.
+ */
+export const ProposedActionSchema = z.object({
+  action_id: z.string().min(1),
+  tool: z.string().min(1),
+  /** Human-readable line shown on the confirmation card. */
+  label: z.string().max(200),
+  permission_level: z.enum(['read', 'guide', 'reversible', 'transactional', 'sensitive']),
+  decision: z.enum(['allowed', 'confirmation_required']),
+  args: z.record(z.string(), z.unknown()),
+});
+export type ProposedAction = z.infer<typeof ProposedActionSchema>;
+
+/** Execution result reported back by the SDK (server-authoritative audit). */
+export const ActionResultReportSchema = z.object({
+  action_id: z.string().min(1),
+  session_id: z.string().min(1),
+  result: z.enum(['succeeded', 'failed', 'cancelled']),
+  error: z.string().max(500).optional(),
+  /** What the verification observed (explainable, doc 3 §10 tool contract). */
+  evidence: z.string().max(500).optional(),
+});
+export type ActionResultReport = z.infer<typeof ActionResultReportSchema>;
+
 export const ChatResponseSchema = z.object({
   message_id: z.string().min(1),
   reply: z.string().min(1).max(8000),
   mode: AssistantModeSchema,
   citations: z.array(z.string().max(500)).max(10).optional(),
   guide: GuideTargetSchema.optional(),
+  actions: z.array(ProposedActionSchema).max(5).optional(),
 });
 export type ChatResponse = z.infer<typeof ChatResponseSchema>;

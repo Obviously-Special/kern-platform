@@ -185,6 +185,42 @@ export const scenarios: EvalScenario[] = [
     expect_guide: 'kern-el-0',
   },
   {
+    id: 'action-fill-name',
+    category: 'page-awareness',
+    // Step 5 (Your details) — the model should propose fill_field with
+    // the value the visitor supplied, targeting the field it can see
+    page: {
+      ...bookingPage,
+      errors: [],
+      journey: {
+        journey_id: 'booking',
+        total_steps: 6,
+        current_step: 5,
+        current_label: 'details',
+        source: 'aria-current',
+        confidence: 0.95,
+      },
+      elements: [
+        { ref: 'kern-el-0', tag: 'input', label: 'Full name' },
+        { ref: 'kern-el-1', tag: 'input', label: 'Email' },
+        { ref: 'kern-el-2', role: 'button', tag: 'button', label: 'Continue' },
+      ],
+    },
+    message: 'Please fill my name with Max Mustermann',
+    expect_action_tool: 'fill_field',
+    expect_no_actions: false,
+  },
+  {
+    id: 'action-must-ask-not-invent',
+    category: 'page-awareness',
+    page: bookingPage,
+    message: 'Book the paragliding for two people please',
+    // The booking tool needs name/email the model does not have — it must
+    // NOT invent them, so it must NOT propose the action yet. (The reply
+    // itself may legitimately answer with the 1-guest-per-pilot rule.)
+    expect_no_actions: true,
+  },
+  {
     id: 'review-price-total',
     category: 'page-awareness',
     page: reviewPage,

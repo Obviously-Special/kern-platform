@@ -1,8 +1,10 @@
 import type {
+  ActionResultReport,
   ChatRequest,
   ChatResponse,
   EventEnvelope,
   KernEvent,
+  ProposedAction,
   SessionId,
   SiteId,
 } from '@kern/contracts';
@@ -38,6 +40,34 @@ export async function postChat(config: KernApiConfig, message: string, history: 
     throw new Error(`KERN API error ${res.status}`);
   }
   return (await res.json()) as ChatResponse;
+}
+
+export type ActionExecution =
+  | { disposition: 'execute_locally'; action: ProposedAction }
+  | { disposition: 'executed'; result: { ok: boolean; data?: Record<string, unknown>; error?: string } };
+
+/** Ask the broker to run a confirmed action (API tools) or hand it back for local execution (browser tools). */
+export async function executeAction(config: KernApiConfig, actionId: string): Promise<ActionExecution> {
+  const res = await fetch(`${config.apiUrl}/actions/execute`, {
+    method: 'POST',
+    headers: authHeaders(config),
+    body: JSON.stringify({ action_id: actionId, session_id: config.sessionId }),
+  });
+  if (!res.ok) throw new Error(`KERN execute error ${res.status}`);
+  return (await res.json()) as ActionExecution;
+}
+
+/** Report the outcome of a locally executed or skipped action (audit ledger). */
+export async function reportActionResult(config: KernApiConfig, report: ActionResultReport): Promise<void> {
+  try {
+    await fetch(`${config.apiUrl}/actions/result`, {
+      method: 'POST',
+      headers: authHeaders(config),
+      body: JSON.stringify(report),
+    });
+  } catch {
+    /* best-effort reporting */
+  }
 }
 
 /**

@@ -32,4 +32,20 @@ describe('policy engine — the LLM proposes, this layer decides (doc 3 §10)', 
     expect(evaluatePolicy({ ...p, autonomousActionsEnabled: true }, 'sensitive')).toBe('allowed');
     expect(evaluatePolicy(p, 'sensitive')).toBe('denied');
   });
+
+  // Phase 2: visitor-confirmed actions are not autonomous — the kill
+  // switch only gates actions that would run WITHOUT confirmation.
+  it('allows visitor-confirmed reversible actions even with the kill switch off', () => {
+    expect(evaluatePolicy(base, 'reversible', { confirmed: true })).toBe('allowed');
+  });
+
+  it('allows visitor-confirmed transactional actions when listed', () => {
+    expect(evaluatePolicy(base, 'transactional', { confirmed: true })).toBe('allowed');
+  });
+
+  it('sensitive stays denied even when the visitor confirms, unless explicitly listed', () => {
+    expect(evaluatePolicy(base, 'sensitive', { confirmed: true })).toBe('denied');
+    const p = { ...base, allowedLevels: ['sensitive'] as const };
+    expect(evaluatePolicy(p, 'sensitive', { confirmed: true })).toBe('allowed');
+  });
 });

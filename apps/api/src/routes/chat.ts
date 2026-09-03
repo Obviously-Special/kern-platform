@@ -5,6 +5,12 @@ import { createGateway } from '../gateway/index';
 import { inferGuideFromReply, parseGuideDirective } from '../guide';
 import { detectIntent, type IntentResult } from '../intent';
 import { extractMemories, recall, remember } from '../memory';
+import {
+  inferFillAction,
+  parseActionDirectives,
+  processProposals,
+  toolsPromptSection,
+} from '../actions/broker';
 import { getAllChunks } from '../knowledge/store';
 import { retrieve, type RetrievedChunk } from '../knowledge/retriever';
 import { storeEvent } from '../event-buffer';
@@ -62,15 +68,33 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
         app.log.info({ ...result.usage, site_id: site.site.site_id }, 'gateway call');
       }
       const parsed = parseGuideDirective(result.text, page_context.elements);
-      const { reply: finalReply, facts } = extractMemories(parsed.reply);
+      const { reply: afterMemory, facts } = extractMemories(parsed.reply);
       remember(session_id, facts);
-      const guide = parsed.guide ?? inferGuideFromReply(finalReply, page_context.elements);
+      const guide = parsed.guide ?? inferGuideFromReply(afterMemory, page_context.elements);
+
+      // Actions: model directives -> tool contracts -> policy decisions.
+      // Deterministic fill fallback covers directive-compliance variance —
+      // the confirmation card and broker validation still gate execution.
+      const { reply: finalReply, proposals } = parseActionDirectives(afterMemory);
+      if (proposals.length === 0) {
+        const inferred = inferFillAction(message, finalReply, page_context.elements);
+        if (inferred) proposals.push(inferred);
+      }
+      const actions = processProposals({
+        siteId: site.site.site_id,
+        sessionId: session_id,
+        tenantId: site.site.tenant_id,
+        proposals,
+        contextElements: page_context.elements,
+      });
+
       return ChatResponseSchema.parse({
         message_id: randomUUID(),
         reply: finalReply,
         mode: guide ? 'guide' : 'answer',
         citations: buildCitations(retrieved),
         guide,
+        actions: actions.length > 0 ? actions : undefined,
       });
     } catch (err) {
       app.log.error({ err }, 'gateway call failed');
@@ -157,6 +181,7 @@ function buildSystemPrompt(
     '- If the page context includes journey state and the visitor asks where they are or which step they are on, answer with the exact step number and total (e.g. "step 4 of 6 — Insurance").',
     '- If your answer points the visitor to a specific element on the page (a button, link, field or option they should use), end the reply with a final line containing ONLY <<GUIDE:REFERENCE>> where REFERENCE is that element\'s id or kern-el-N reference from the page context, exactly as listed.',
     '- You may remember up to three session facts the visitor should not have to repeat (e.g. chosen experience, group size, dates) by appending lines like <<REMEMBER:guest is booking the Eiger hike for 2>> at the very end of your reply, after any <<GUIDE>> line. Never remember sensitive data (payment details, emails, names).',
+    '- When your reply says you will DO something for the visitor (fill, select, click, book), ALWAYS end the reply with the matching <<ACTION:tool_name|{"arg":"value"}>> lines — the action only runs if the visitor confirms it, and a reply that promises an action without its directive does nothing. Example reply with an action:\nI\'ll fill that in for you.\n<<ACTION:fill_field|{"ref":"kern-el-0","value":"Max Mustermann"}>>\nUse ONLY the tools listed below and refs from the page context. If the tool needs information you do not have (e.g. the visitor\'s name or email), ASK for it instead of inventing it. Never propose actions for passwords, payment details or account deletion.',
     '- When the visitor asks to be shown a button, link or field BY NAME, target the element whose label matches that name most closely — prefer the one inside the current step or current view. If several elements share the name, pick the most specific match; never guess when the labels differ.',
     '- Use plain text with light emphasis only (e.g. **important**). No headings, no tables, no markdown links — the widget renders a compact chat.',
     "- Match the visitor's language.",
@@ -170,6 +195,8 @@ function buildSystemPrompt(
     ctxJson,
     memorySection,
     knowledgeSection,
+    '',
+    toolsPromptSection(),
   ].join('\n');
 }
 

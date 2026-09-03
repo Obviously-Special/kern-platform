@@ -22,10 +22,25 @@ export const DEFAULT_POLICY: Omit<SitePolicy, 'siteId'> = {
   // 'sensitive' is never automatic by default (doc 3 §10 L4)
 };
 
-export function evaluatePolicy(policy: SitePolicy, level: PermissionLevel): PolicyDecision {
+export function evaluatePolicy(
+  policy: SitePolicy,
+  level: PermissionLevel,
+  opts: { confirmed?: boolean } = {},
+): PolicyDecision {
   // Read-only assistance always survives the kill switch
   if (level === 'read' || level === 'guide') return 'allowed';
 
+  if (opts.confirmed) {
+    // A visitor-confirmed action is NOT autonomous — the kill switch
+    // (doc 3 §12: "disable all AUTONOMOUS actions") does not block it.
+    // Sensitive stays never-automatic unless the site explicitly lists it.
+    if (policy.allowedLevels.includes(level) || policy.confirmationLevels.includes(level)) {
+      return 'allowed';
+    }
+    return 'denied';
+  }
+
+  // Autonomous path — requires the switch on
   if (!policy.autonomousActionsEnabled) return 'denied';
   if (policy.allowedLevels.includes(level)) return 'allowed';
   if (policy.confirmationLevels.includes(level)) return 'confirmation_required';

@@ -46,6 +46,23 @@ function evaluateGuide(
   return [`expected guide to ${scenario.expect_guide}, got ${actual ?? 'none'}`];
 }
 
+function evaluateActions(
+  scenario: EvalScenario,
+  actions: { tool: string }[] | undefined,
+): string[] {
+  const failures: string[] = [];
+  if (scenario.expect_action_tool) {
+    const found = (actions ?? []).some((a) => a.tool === scenario.expect_action_tool);
+    if (!found) {
+      failures.push(`expected action tool ${scenario.expect_action_tool}, got ${(actions ?? []).map((a) => a.tool).join(', ') || 'none'}`);
+    }
+  }
+  if (scenario.expect_no_actions && (actions ?? []).length > 0) {
+    failures.push(`expected no actions, got ${actions!.map((a) => a.tool).join(', ')}`);
+  }
+  return failures;
+}
+
 async function main(): Promise<void> {
   const app = await buildApp();
 
@@ -86,7 +103,11 @@ async function main(): Promise<void> {
     const body = res.json();
     const reply: string = body.reply ?? '';
     const citations: string[] = body.citations ?? [];
-    const failures = [...evaluate(scenario, reply, citations), ...evaluateGuide(scenario, body.guide)];
+    const failures = [
+      ...evaluate(scenario, reply, citations),
+      ...evaluateGuide(scenario, body.guide),
+      ...evaluateActions(scenario, body.actions),
+    ];
     results.push({ scenario, statusCode: 200, reply, citations, failures, passed: failures.length === 0 });
   }
 

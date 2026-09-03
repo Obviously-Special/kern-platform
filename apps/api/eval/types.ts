@@ -31,6 +31,10 @@ export interface EvalScenario {
   expect_citation?: boolean;
   /** The response must guide to exactly this element id. */
   expect_guide?: string;
+  /** The response must propose an action with exactly this tool. */
+  expect_action_tool?: string;
+  /** The response must NOT propose any actions. */
+  expect_no_actions?: boolean;
 }
 
 export interface EvalResult {
