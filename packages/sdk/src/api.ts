@@ -6,6 +6,7 @@ import type {
   SessionId,
   SiteId,
 } from '@kern/contracts';
+import type { KernSiteConfig } from './detection';
 
 export interface KernApiConfig {
   apiUrl: string;
@@ -37,6 +38,20 @@ export async function postChat(config: KernApiConfig, message: string, history: 
     throw new Error(`KERN API error ${res.status}`);
   }
   return (await res.json()) as ChatResponse;
+}
+
+/**
+ * Fetch the public slice of the site's page map (journeys + detection
+ * hints). Best-effort — detection simply stays dormant if unavailable.
+ */
+export async function fetchSiteConfig(config: KernApiConfig): Promise<KernSiteConfig | null> {
+  try {
+    const res = await fetch(`${config.apiUrl}/site-config`, { headers: authHeaders(config) });
+    if (!res.ok) return null;
+    return (await res.json()) as KernSiteConfig;
+  } catch {
+    return null;
+  }
 }
 
 /** Fire-and-forget event emission — never blocks the page. */

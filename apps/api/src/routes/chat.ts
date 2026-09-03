@@ -99,6 +99,7 @@ function buildSystemPrompt(ctx: PageContext, retrieved: RetrievedChunk[]): strin
     '- When the visitor asks what is on a page or what they will see there, summarize the relevant COMPANY KNOWLEDGE concretely — include prices, options and specific facts when they are present.',
     '- Use COMPANY KNOWLEDGE directly whenever any excerpt relates to the question or the page the visitor asks about. The "does not provide" fallback applies ONLY when nothing in the knowledge relates to the question — if related knowledge exists, answer from it instead.',
     '- If you see visible_errors, acknowledge them and give the concrete next step.',
+    '- If the page context includes journey state and the visitor asks where they are or which step they are on, answer with the exact step number and total (e.g. "step 4 of 6 — Insurance").',
     "- Match the visitor's language.",
     '',
     'CURRENT_PAGE_TYPE: ' + ctx.page_type,

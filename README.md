@@ -41,6 +41,10 @@ npm run eval -w @kern/api   # needs the demo site running + a provider key
 
 Exits non-zero below the 80% pass threshold. CI runs it as a manual workflow (`.github/workflows/eval.yml` — requires the `OPENAI_API_KEY` repository secret). Not part of `npm test`: it costs tokens.
 
+## Journey-step detection
+
+The SDK detects which step of a multi-step flow the visitor is on — generic signals in priority order (`aria-current="step"` → page-map stepper hints → URL patterns), each result carrying its detection source and confidence. Journeys are declared in the site's page map and served to the SDK via `GET /site-config` (site-key authenticated). Step state travels in `PageContext.journey` and `journey_step` events — the foundation for friction analytics ("attempts stop at insurance") and guide mode.
+
 ## Guiding principles
 
 - Never fork the core per customer — customization lives in configuration, connectors, adapters, policies, page maps.

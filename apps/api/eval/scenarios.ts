@@ -16,7 +16,8 @@ const BASE = 'http://localhost:3000';
  */
 const NOT_PROVIDED = [
   "don't", "doesn't", 'does not', "isn't", 'is not', "can't", 'cannot',
-  'not mention', 'not mentioned', 'no information', 'not provide', 'not provided',
+  'not mention', 'not mentioned', 'no mention', 'no information',
+  'not provide', 'not provided', 'nothing in',
 ];
 
 function page(route: string, page_type: PageContext['page_type'], headings: string[], extra?: Partial<PageContext>): PageContext {
@@ -94,11 +95,22 @@ export const scenarios: EvalScenario[] = [
   {
     id: 'which-step',
     category: 'page-awareness',
-    page: bookingPage,
+    // Journey state as the SDK now detects it (aria-current on the stepper)
+    page: {
+      ...bookingPage,
+      journey: {
+        journey_id: 'booking',
+        total_steps: 6,
+        current_step: 4,
+        current_label: 'insurance',
+        source: 'aria-current',
+        confidence: 0.95,
+      },
+    },
     message: 'Which step of the booking am I on?',
-    // v1: inferred from the visible error. Upgrades to "step 4 of 6" when
-    // journey-step detection (Phase 1) lands — then must_contain: ['4'].
-    must_contain: ['insurance'],
+    // The exact step, grounded in journey state — not inferred from the error
+    must_contain_any: ['step 4', '4 of 6', 'step four'],
+    must_contain: ['6'],
   },
   {
     id: 'account-modify',

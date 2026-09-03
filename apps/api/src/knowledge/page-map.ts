@@ -15,6 +15,24 @@ export interface SiteFact {
   text: string;
 }
 
+/**
+ * Journey declaration — the per-site bridge for step detection
+ * (doc 3 §6.1 "context mapping: current step"). Steps + optional DOM
+ * hints travel to the SDK via /site-config; no customer code in the core.
+ */
+export interface SiteJourney {
+  id: string;
+  /** Route prefix the journey applies to, e.g. "/booking". */
+  pathPrefix: string;
+  steps: string[];
+  hints?: {
+    /** Selector for the step-indicator container. */
+    stepIndicator?: string;
+    /** Class marking the active step item. */
+    activeClass?: string;
+  };
+}
+
 export interface SitePageMap {
   siteId: string;
   baseUrl: string;
@@ -22,6 +40,8 @@ export interface SitePageMap {
   routes: string[];
   /** Curated business facts not extractable from static HTML. */
   facts: SiteFact[];
+  /** Multi-step journeys this site exposes. */
+  journeys: SiteJourney[];
 }
 
 export const demoSiteMap: SitePageMap = {
@@ -75,4 +95,24 @@ export const demoSiteMap: SitePageMap = {
       text: 'Phone: +41 33 555 18 20 (from 8:00). Email: hello@bergblick.example. Address: Dorfstrasse 12, 3818 Grindelwald. The base is open daily from 8:00 to 18:00.',
     },
   ],
+  journeys: [
+    {
+      id: 'booking',
+      pathPrefix: '/booking',
+      steps: ['experience', 'date', 'extras', 'insurance', 'details', 'review'],
+      hints: {
+        // The demo wizard's step indicator (fixed to use aria-current too —
+        // the hint is what a real customer site would need)
+        stepIndicator: 'ol[data-kern-step-list]',
+        activeClass: 'bg-pine-700',
+      },
+    },
+  ],
 };
+
+/** Per-site page-map registry — the customer-configuration layer. */
+const pageMaps = new Map<string, SitePageMap>([['demo-bergblick', demoSiteMap]]);
+
+export function getSitePageMap(siteId: string): SitePageMap | undefined {
+  return pageMaps.get(siteId);
+}

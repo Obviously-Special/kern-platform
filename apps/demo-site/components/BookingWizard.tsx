@@ -125,12 +125,15 @@ export default function BookingWizard() {
 
   return (
     <div className="rounded-xl border border-stone-200 bg-white p-6 md:p-8">
-      {/* Step indicator */}
-      <ol className="mb-8 flex flex-wrap gap-2 text-xs font-semibold text-stone-500">
+      {/* Step indicator — data-kern-step-list + aria-current="step" is the
+          accessible markup the KERN page map detects (demo of good-citizen
+          integration) */}
+      <ol data-kern-step-list className="mb-8 flex flex-wrap gap-2 text-xs font-semibold text-stone-500">
         {['Experience', 'Date & group', 'Extras', 'Insurance', 'Your details', 'Review'].map(
           (label, i) => (
             <li
               key={label}
+              aria-current={s.step === i + 1 ? 'step' : undefined}
               className={
                 s.step === i + 1
                   ? 'rounded-full bg-pine-700 px-3 py-1 text-white'

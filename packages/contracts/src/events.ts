@@ -100,6 +100,16 @@ export const ActionFailedEventDataSchema = z.object({
 });
 export type ActionFailedEventData = z.infer<typeof ActionFailedEventDataSchema>;
 
+export const JourneyStepEventDataSchema = z.object({
+  journey_id: z.string().min(1),
+  step: z.number().int().min(1),
+  total_steps: z.number().int().min(1).optional(),
+  label: z.string().max(100).optional(),
+  status: z.enum(['entered', 'completed', 'abandoned']),
+  latency_ms: z.number().int().min(0).optional(),
+});
+export type JourneyStepEventData = z.infer<typeof JourneyStepEventDataSchema>;
+
 // ---- Friction -----------------------------------------------------------------
 
 export const RepeatQuestionEventDataSchema = z.object({
@@ -151,6 +161,8 @@ export const KernEventSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('guide_started'), data: GuideEventDataSchema }),
   z.object({ type: z.literal('guide_completed'), data: GuideEventDataSchema }),
   z.object({ type: z.literal('handoff'), data: HandoffEventDataSchema }),
+
+  z.object({ type: z.literal('journey_step'), data: JourneyStepEventDataSchema }),
 
   z.object({ type: z.literal('action_proposed'), data: ActionProposedEventDataSchema }),
   z.object({ type: z.literal('action_confirmed'), data: ActionConfirmedEventDataSchema }),

@@ -5,6 +5,7 @@ import { chatRoutes } from './routes/chat';
 import { eventRoutes } from './routes/events';
 import { adminRoutes } from './routes/admin';
 import { tenantRoutes } from './routes/tenants';
+import { siteConfigRoutes } from './routes/site-config';
 import { seedDemo } from './tenants/service';
 
 /**
@@ -37,6 +38,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(eventRoutes);
   await app.register(adminRoutes);
   await app.register(tenantRoutes);
+  await app.register(siteConfigRoutes);
 
   return app;
 }

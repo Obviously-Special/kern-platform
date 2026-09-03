@@ -109,6 +109,30 @@ describe('event tenant isolation', () => {
   });
 });
 
+describe('site config (public page-map slice)', () => {
+  it('requires a site key', async () => {
+    const res = await app.inject({ method: 'GET', url: '/site-config' });
+    expect(res.statusCode).toBe(401);
+  });
+
+  it('serves the demo journeys with their detection hints', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/site-config',
+      headers: { 'x-kern-site-key': DEMO_KEY },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.site_id).toBe('demo-bergblick');
+    expect(body.journeys).toHaveLength(1);
+    expect(body.journeys[0]).toMatchObject({
+      id: 'booking',
+      pathPrefix: '/booking',
+      steps: ['experience', 'date', 'extras', 'insurance', 'details', 'review'],
+    });
+  });
+});
+
 describe('tenant admin', () => {
   it('creates a tenant and a site with a random key', async () => {
     const t = await app.inject({

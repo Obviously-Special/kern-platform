@@ -1,6 +1,7 @@
 import { capturePageContext } from './context';
 import { KernWidget } from './widget';
-import { postEvent, type KernApiConfig } from './api';
+import { fetchSiteConfig, postEvent, type KernApiConfig } from './api';
+import { setSiteConfig } from './detection';
 import type { SessionId, SiteId } from '@kern/contracts';
 
 export interface KernConfig {
@@ -69,11 +70,21 @@ export function initKern(config: KernConfig): KernHandle {
     },
   });
 
+  // Load the site's public page map (journeys + detection hints) — best-effort
+  void fetchSiteConfig(apiConfig).then((config) => {
+    if (!config) return;
+    setSiteConfig(config);
+    widget.refreshPageLabel();
+  });
+
   // v0 SPA observation: poll for route changes, emit page_view on change
+  // and journey_step whenever the detected step changes
   let lastUrl = window.location.href;
+  let lastStep = capturePageContext().journey?.current_step ?? null;
   const poller = window.setInterval(() => {
     if (window.location.href !== lastUrl) {
       lastUrl = window.location.href;
+      lastStep = null; // re-detect on the new page
       widget.refreshPageLabel();
       postEvent(apiConfig, {
         type: 'page_view',
@@ -84,6 +95,21 @@ export function initKern(config: KernConfig): KernHandle {
           title: document.title,
         },
       });
+    }
+    const journey = capturePageContext().journey;
+    const step = journey?.current_step ?? null;
+    if (step !== null && step !== lastStep) {
+      postEvent(apiConfig, {
+        type: 'journey_step',
+        data: {
+          journey_id: journey!.journey_id,
+          step,
+          total_steps: journey!.total_steps,
+          label: journey!.current_label,
+          status: 'entered',
+        },
+      });
+      lastStep = step;
     }
   }, 1000);
 

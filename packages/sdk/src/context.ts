@@ -1,5 +1,6 @@
 import type { PageContext, PageElement } from '@kern/contracts';
 import { inferPageType } from '@kern/contracts';
+import { detectJourneyState } from './detection';
 
 // Re-exported for back-compat (moved to @kern/contracts — shared SDK/API logic)
 export { inferPageType };
@@ -70,6 +71,7 @@ export function capturePageContext(): PageContext {
     .filter((t): t is string => Boolean(t && t.length <= 200));
   const errors = collectVisibleErrors();
   const elements = selectRelevantElements();
+  const journey = detectJourneyState(route, document) ?? undefined;
 
   return {
     url,
@@ -79,7 +81,8 @@ export function capturePageContext(): PageContext {
     elements,
     errors,
     entities: [],
-    state_hash: hashState([url, errors.join('|'), headings.join('|')]),
+    journey,
+    state_hash: hashState([url, errors.join('|'), headings.join('|'), journey ? `${journey.current_step}` : '']),
     timestamp: new Date().toISOString(),
   };
 }

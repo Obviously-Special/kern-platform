@@ -39,6 +39,22 @@ export const VisibleTextSchema = z.object({
 });
 export type VisibleText = z.infer<typeof VisibleTextSchema>;
 
+/**
+ * Journey state — which step of a multi-step flow the visitor is on
+ * (doc 3 §6.1 "context mapping": current step). Detected by the SDK
+ * (generic signals + per-site page-map hints) and always carries its
+ * detection source and confidence so answers stay explainable.
+ */
+export const JourneyStateSchema = z.object({
+  journey_id: z.string().min(1),
+  total_steps: z.number().int().min(1),
+  current_step: z.number().int().min(1),
+  current_label: z.string().max(100).optional(),
+  source: z.enum(['site-config', 'aria-current', 'stepper', 'url', 'visibility']),
+  confidence: z.number().min(0).max(1),
+});
+export type JourneyState = z.infer<typeof JourneyStateSchema>;
+
 export const PageContextSchema = z.object({
   url: z.string().min(1).max(2000),
   route: z.string().max(500).optional(), // SPA route if different from url
@@ -47,6 +63,7 @@ export const PageContextSchema = z.object({
   elements: z.array(PageElementSchema).max(50),
   errors: z.array(z.string().max(300)).max(10), // visible validation/warning states
   entities: z.array(z.string().max(200)).max(10), // product/plan/booking ids where detectable
+  journey: JourneyStateSchema.optional(),
   state_hash: z.string().min(1), // changes when meaningful page state changes
   timestamp: z.string().datetime(),
 });
