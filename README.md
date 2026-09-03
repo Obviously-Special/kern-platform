@@ -41,6 +41,10 @@ npm run eval -w @kern/api   # needs the demo site running + a provider key
 
 Exits non-zero below the 80% pass threshold. CI runs it as a manual workflow (`.github/workflows/eval.yml` — requires the `OPENAI_API_KEY` repository secret). Not part of `npm test`: it costs tokens.
 
+## Guide mode (v1)
+
+The assistant can point, not just answer: the model may end a reply with `<<GUIDE:element-id>>`; the API validates the target against the page context it sent (never guides to unknown elements) and strips the directive from the visible reply. The widget highlights the target with the signal-green outline, scrolls it into view, and emits `guide_started`/`guide_completed` events. Replies render a safe markdown subset (HTML escaped first).
+
 ## Journey-step detection
 
 The SDK detects which step of a multi-step flow the visitor is on — generic signals in priority order (`aria-current="step"` → page-map stepper hints → URL patterns), each result carrying its detection source and confidence. Journeys are declared in the site's page map and served to the SDK via `GET /site-config` (site-key authenticated). Step state travels in `PageContext.journey` and `journey_step` events — the foundation for friction analytics ("attempts stop at insurance") and guide mode.

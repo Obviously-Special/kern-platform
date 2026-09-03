@@ -36,6 +36,12 @@ function evaluate(scenario: EvalScenario, reply: string, citations: string[]): s
   return failures;
 }
 
+function evaluateGuide(scenario: EvalScenario, guide: { element_id?: string } | undefined): string[] {
+  if (!scenario.expect_guide) return [];
+  if (guide?.element_id === scenario.expect_guide) return [];
+  return [`expected guide to ${scenario.expect_guide}, got ${guide?.element_id ?? 'none'}`];
+}
+
 async function main(): Promise<void> {
   const app = await buildApp();
 
@@ -76,7 +82,7 @@ async function main(): Promise<void> {
     const body = res.json();
     const reply: string = body.reply ?? '';
     const citations: string[] = body.citations ?? [];
-    const failures = evaluate(scenario, reply, citations);
+    const failures = [...evaluate(scenario, reply, citations), ...evaluateGuide(scenario, body.guide)];
     results.push({ scenario, statusCode: 200, reply, citations, failures, passed: failures.length === 0 });
   }
 

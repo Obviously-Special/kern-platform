@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { ChatRequestSchema, ChatResponseSchema, type PageContext } from '@kern/contracts';
 import { createGateway } from '../gateway/index';
+import { parseGuideDirective } from '../guide';
 import { getAllChunks } from '../knowledge/store';
 import { retrieve, type RetrievedChunk } from '../knowledge/retriever';
 
@@ -40,11 +41,13 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
       if (result.usage) {
         app.log.info({ ...result.usage, site_id: site.site.site_id }, 'gateway call');
       }
+      const { reply: cleanReply, guide } = parseGuideDirective(result.text, page_context.elements);
       return ChatResponseSchema.parse({
         message_id: randomUUID(),
-        reply: result.text,
-        mode: 'answer',
+        reply: cleanReply,
+        mode: guide ? 'guide' : 'answer',
         citations: buildCitations(retrieved),
+        guide,
       });
     } catch (err) {
       app.log.error({ err }, 'gateway call failed');
@@ -100,6 +103,8 @@ function buildSystemPrompt(ctx: PageContext, retrieved: RetrievedChunk[]): strin
     '- Use COMPANY KNOWLEDGE directly whenever any excerpt relates to the question or the page the visitor asks about. The "does not provide" fallback applies ONLY when nothing in the knowledge relates to the question — if related knowledge exists, answer from it instead.',
     '- If you see visible_errors, acknowledge them and give the concrete next step.',
     '- If the page context includes journey state and the visitor asks where they are or which step they are on, answer with the exact step number and total (e.g. "step 4 of 6 — Insurance").',
+    '- If your answer points the visitor to a specific element on the page (a button, field or option they should use), end the reply with a final line containing ONLY <<GUIDE:ID>> where ID is that element\'s id from the page context, exactly as listed.',
+    '- Use plain text with light emphasis only (e.g. **important**). No headings, no tables, no markdown links — the widget renders a compact chat.',
     "- Match the visitor's language.",
     '',
     'CURRENT_PAGE_TYPE: ' + ctx.page_type,

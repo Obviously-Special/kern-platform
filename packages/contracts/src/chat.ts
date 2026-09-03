@@ -24,10 +24,22 @@ export type ChatRequest = z.infer<typeof ChatRequestSchema>;
 export const AssistantModeSchema = z.enum(['answer', 'guide', 'ask', 'handoff']);
 export type AssistantMode = z.infer<typeof AssistantModeSchema>;
 
+/**
+ * Guide target — which page element the widget should highlight/scroll to
+ * (guide mode v1). Always an element from the page context the model was
+ * shown; the API never emits targets it didn't receive.
+ */
+export const GuideTargetSchema = z.object({
+  element_id: z.string().min(1),
+  label: z.string().max(200).optional(),
+});
+export type GuideTarget = z.infer<typeof GuideTargetSchema>;
+
 export const ChatResponseSchema = z.object({
   message_id: z.string().min(1),
   reply: z.string().min(1).max(8000),
   mode: AssistantModeSchema,
   citations: z.array(z.string().max(500)).max(10).optional(),
+  guide: GuideTargetSchema.optional(),
 });
 export type ChatResponse = z.infer<typeof ChatResponseSchema>;

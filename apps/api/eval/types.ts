@@ -29,6 +29,8 @@ export interface EvalScenario {
   must_not_contain?: string[];
   /** The response must carry at least one citation. */
   expect_citation?: boolean;
+  /** The response must guide to exactly this element id. */
+  expect_guide?: string;
 }
 
 export interface EvalResult {

@@ -119,6 +119,28 @@ export const scenarios: EvalScenario[] = [
     message: 'How do I change my booking from here?',
     must_contain_any: ['modify', 'my bookings', 'account'],
   },
+  {
+    id: 'guide-continue-button',
+    category: 'page-awareness',
+    page: bookingPage,
+    message: 'Which button should I press to continue?',
+    must_contain: ['continue'],
+    expect_guide: 'booking-continue',
+  },
+  {
+    id: 'guide-date-picker',
+    category: 'page-awareness',
+    page: {
+      ...bookingPage,
+      errors: [],
+      elements: [
+        ...bookingPage.elements,
+        { id: 'date-2026-09-05', tag: 'button', label: 'Book 5 Sep' },
+      ],
+    },
+    message: 'How do I pick the 5th of September?',
+    expect_guide: 'date-2026-09-05',
+  },
 
   // KNOWLEDGE — grounded in company knowledge, cited
   {

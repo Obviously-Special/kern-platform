@@ -1,5 +1,6 @@
 import type { ChatMessage, ChatResponse } from '@kern/contracts';
 import { capturePageContext } from './context';
+import { formatMarkdown } from './format';
 import { postChat, postEvent, type KernApiConfig } from './api';
 
 /**
@@ -47,6 +48,10 @@ const CSS = `
 .msg.user { align-self: flex-end; background: #111111; color: #ffffff; border-bottom-right-radius: 4px; }
 .msg.assistant { align-self: flex-start; background: #F6F4EF; color: #111111; border-bottom-left-radius: 4px; }
 .sources { align-self: flex-start; font-size: 11px; color: #8A8577; padding: 0 12px 4px; margin-top: -6px; }
+.msg.assistant strong { font-weight: 700; }
+.msg.assistant em { font-style: italic; }
+.msg.assistant code { font-family: ui-monospace, monospace; font-size: 12.5px; background: rgba(17,17,17,0.06); padding: 1px 4px; border-radius: 4px; }
+.msg.assistant a { color: #4B7EFF; text-decoration: underline; }
 .typing { align-self: flex-start; color: #8A8577; font-size: 12.5px; padding: 4px 12px; }
 
 .inputrow { display: flex; gap: 8px; padding: 12px; border-top: 1px solid #F1EFE9; }
@@ -152,7 +157,13 @@ export class KernWidget {
   private addMessage(role: 'user' | 'assistant', content: string, citations?: string[]) {
     const el = document.createElement('div');
     el.className = `msg ${role}`;
-    el.textContent = content;
+    // Assistant replies render a safe markdown subset (**bold** etc.);
+    // user messages stay plain text. HTML is escaped before transforms.
+    if (role === 'assistant') {
+      el.innerHTML = formatMarkdown(content);
+    } else {
+      el.textContent = content;
+    }
     this.messagesEl.appendChild(el);
     if (citations && citations.length > 0) {
       const sources = document.createElement('div');
@@ -161,6 +172,27 @@ export class KernWidget {
       this.messagesEl.appendChild(sources);
     }
     this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
+  }
+
+  /**
+   * Guide mode: highlight the target element in the host page with the
+   * signal-green outline and scroll it into view (doc 2 §3: "visual focus
+   * on target"). The widget lives in a shadow root; the target is in the
+   * host document.
+   */
+  private guideTo(elementId: string) {
+    const el = document.getElementById(elementId);
+    if (!el) return;
+    postEvent(this.config, { type: 'guide_started', data: { target_element_id: elementId } });
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const previous = el.style.outline;
+    el.style.outline = '3px solid #C0FF43';
+    el.style.outlineOffset = '2px';
+    el.style.borderRadius = el.style.borderRadius || '4px';
+    window.setTimeout(() => {
+      el.style.outline = previous;
+      postEvent(this.config, { type: 'guide_completed', data: { target_element_id: elementId } });
+    }, 5000);
   }
 
   private async send() {
@@ -189,6 +221,7 @@ export class KernWidget {
       const res: ChatResponse = await postChat(this.config, text, this.history.slice(0, -1), pageContext);
       typing.remove();
       this.addMessage('assistant', res.reply, res.citations);
+      if (res.guide) this.guideTo(res.guide.element_id);
       this.history.push({ role: 'assistant', content: res.reply });
       postEvent(this.config, {
         type: 'answer_shown',
