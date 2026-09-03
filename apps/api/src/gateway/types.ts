@@ -1,9 +1,13 @@
-import type { ChatMessage } from '@kern/contracts';
+import type { AssistantOutput, ChatMessage } from '@kern/contracts';
 
 /**
  * The model gateway is provider-agnostic (doc 3: "swap models without
  * rewriting product logic"). Everything above this interface speaks KERN
  * contracts; only the provider implementation knows an SDK.
+ *
+ * Providers that support structured outputs constrain the response to
+ * AssistantOutput; providers that don't fall back to plain text (the
+ * shared parser degrades gracefully).
  */
 export interface GatewayRequest {
   system: string;
@@ -19,7 +23,7 @@ export interface ModelUsage {
 }
 
 export interface GatewayReply {
-  text: string;
+  output: AssistantOutput;
   usage?: ModelUsage;
 }
 

@@ -57,6 +57,12 @@ function evaluateActions(
       failures.push(`expected action tool ${scenario.expect_action_tool}, got ${(actions ?? []).map((a) => a.tool).join(', ') || 'none'}`);
     }
   }
+  if (scenario.expect_action_tool_any) {
+    const found = (actions ?? []).some((a) => scenario.expect_action_tool_any!.includes(a.tool));
+    if (!found) {
+      failures.push(`expected any action of ${scenario.expect_action_tool_any.join('/')}, got ${(actions ?? []).map((a) => a.tool).join(', ') || 'none'}`);
+    }
+  }
   if (scenario.expect_no_actions && (actions ?? []).length > 0) {
     failures.push(`expected no actions, got ${actions!.map((a) => a.tool).join(', ')}`);
   }
@@ -76,6 +82,11 @@ async function main(): Promise<void> {
 
   const results: EvalResult[] = [];
   for (const scenario of scenarios) {
+    // Rate-limit courtesy: rapid sequential calls blow through TPM limits
+    // on dev API keys (observed 429s). 1.5s between scenarios keeps runs stable.
+    if (results.length > 0) {
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+    }
     const res = await app.inject({
       method: 'POST',
       url: '/chat',

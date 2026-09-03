@@ -67,6 +67,31 @@ export const ActionResultReportSchema = z.object({
 });
 export type ActionResultReport = z.infer<typeof ActionResultReportSchema>;
 
+/**
+ * The structured output contract between the gateway and the chat route
+ * (Phase 2 close-out). Providers constrain the response format to this
+ * schema — the model cannot forget to propose actions or targets.
+ */
+export const AssistantOutputSchema = z.object({
+  reply: z.string().min(1).max(8000),
+  guide: z
+    .object({
+      target: z.string().min(1), // element id or kern-el-N ref from the page context
+    })
+    .nullable(),
+  actions: z
+    .array(
+      z.object({
+        tool: z.string().min(1),
+        /** JSON-encoded args string — the broker validates against per-tool contracts. */
+        args: z.string().max(2000),
+      }),
+    )
+    .max(5),
+  memories: z.array(z.string().max(200)).max(3),
+});
+export type AssistantOutput = z.infer<typeof AssistantOutputSchema>;
+
 export const ChatResponseSchema = z.object({
   message_id: z.string().min(1),
   reply: z.string().min(1).max(8000),

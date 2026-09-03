@@ -33,6 +33,8 @@ export interface EvalScenario {
   expect_guide?: string;
   /** The response must propose an action with exactly this tool. */
   expect_action_tool?: string;
+  /** The response must propose an action with any of these tools (model strategy varies). */
+  expect_action_tool_any?: string[];
   /** The response must NOT propose any actions. */
   expect_no_actions?: boolean;
 }

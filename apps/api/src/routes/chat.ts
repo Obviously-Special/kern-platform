@@ -1,16 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
-import { ChatRequestSchema, ChatResponseSchema, type PageContext } from '@kern/contracts';
+import { ChatRequestSchema, ChatResponseSchema, type GuideTarget, type PageContext, type PageElement } from '@kern/contracts';
 import { createGateway } from '../gateway/index';
-import { inferGuideFromReply, parseGuideDirective } from '../guide';
+import { inferGuideFromReply } from '../guide';
 import { detectIntent, type IntentResult } from '../intent';
-import { extractMemories, recall, remember } from '../memory';
-import {
-  inferFillAction,
-  parseActionDirectives,
-  processProposals,
-  toolsPromptSection,
-} from '../actions/broker';
+import { recall, remember } from '../memory';
+import { inferFillAction, processProposals, toolsPromptSection } from '../actions/broker';
 import { getAllChunks } from '../knowledge/store';
 import { retrieve, type RetrievedChunk } from '../knowledge/retriever';
 import { storeEvent } from '../event-buffer';
@@ -67,17 +62,26 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
       if (result.usage) {
         app.log.info({ ...result.usage, site_id: site.site.site_id }, 'gateway call');
       }
-      const parsed = parseGuideDirective(result.text, page_context.elements);
-      const { reply: afterMemory, facts } = extractMemories(parsed.reply);
-      remember(session_id, facts);
-      const guide = parsed.guide ?? inferGuideFromReply(afterMemory, page_context.elements);
+      const output = result.output;
 
-      // Actions: model directives -> tool contracts -> policy decisions.
-      // Deterministic fill fallback covers directive-compliance variance —
+      // Memories: stored verbatim from the structured output
+      remember(session_id, output.memories);
+
+      // Guide target: validated against the context the model saw;
+      // deterministic reply-inference covers a missed target
+      const guide =
+        resolveGuideTarget(output.guide?.target, page_context.elements) ??
+        inferGuideFromReply(output.reply, page_context.elements);
+
+      // Actions: structured proposals -> tool contracts -> policy decisions.
+      // The fill fallback stays as the safety net for missed proposals —
       // the confirmation card and broker validation still gate execution.
-      const { reply: finalReply, proposals } = parseActionDirectives(afterMemory);
+      const proposals = output.actions.map((a) => ({
+        tool: a.tool,
+        args: parseJsonArgs(a.args),
+      }));
       if (proposals.length === 0) {
-        const inferred = inferFillAction(message, finalReply, page_context.elements);
+        const inferred = inferFillAction(message, output.reply, page_context.elements);
         if (inferred) proposals.push(inferred);
       }
       const actions = processProposals({
@@ -90,7 +94,7 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
 
       return ChatResponseSchema.parse({
         message_id: randomUUID(),
-        reply: finalReply,
+        reply: output.reply,
         mode: guide ? 'guide' : 'answer',
         citations: buildCitations(retrieved),
         guide,
@@ -107,6 +111,24 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
  * v0 system prompt (doc 2 §3 interaction rules): live page context +
  * retrieved company knowledge, each excerpt carrying its source.
  */
+/** args travel as a JSON string from the structured output; unparseable args become empty (the broker drops them). */
+function parseJsonArgs(raw: string): Record<string, unknown> {
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    return typeof parsed === 'object' && parsed !== null ? (parsed as Record<string, unknown>) : {};
+  } catch {
+    return {};
+  }
+}
+
+/** Structured-output guide target -> validated GuideTarget (never an element the model didn't see). */
+function resolveGuideTarget(target: string | undefined, elements: PageElement[]): GuideTarget | undefined {
+  if (!target) return undefined;
+  const el = elements.find((e) => e.id === target || e.ref === target);
+  if (!el || (!el.id && !el.ref)) return undefined;
+  return { element_id: el.id, element_ref: el.ref, label: el.label };
+}
+
 /** Per-intent behavior guidance for the model (doc 2 §3 agent behavior model). */
 function intentBehavior(intent: IntentResult): string {
   switch (intent.label) {
@@ -171,7 +193,10 @@ function buildSystemPrompt(
     'Rules:',
     '- Anchor every answer to the current page context below.',
     '- Prefer moving the visitor forward over long explanations.',
-    '- When your answer refers to a specific page element (a button, link, field or option), ALWAYS end the reply with <<GUIDE:REFERENCE>> on its own final line, where REFERENCE is that element\'s id or kern-el-N reference from the page context. The directive must reference exactly the element your answer is about. Example reply:\nThe Continue button is below the options.\n<<GUIDE:kern-el-0>>\nIf no specific element is involved, omit the directive.',
+    '- When your answer refers to a specific page element (a button, link, field or option), set "guide": {"target": "<id or kern-el-N ref from the page context>"} to the element your answer is about. Otherwise set "guide": null.',
+    '- When the visitor asks to be shown a button, link or field BY NAME, choose as the guide target the element whose label matches that name most closely — prefer the one inside the current step or current view. If several elements share the name, pick the most specific match; never guess when the labels differ.',
+    '- To complete the visitor\'s task, list proposed actions in "actions" using ONLY the tools listed below, with "args" containing refs from the page context. Use [] when no action fits. When EVERY required argument for a tool is present in the conversation, propose it — do not keep discussing details instead of proposing. If a tool needs information you do not have (e.g. the visitor\'s name or email), ASK for it in your reply instead of inventing it. Never propose actions for passwords, payment details or account deletion.',
+    '- Put up to three session facts the visitor should not have to repeat into "memories" (e.g. "guest is booking the Eiger hike for 2"). Never store names, emails or payment details.',
     '- Only reference page elements that are listed in the context. Never invent buttons or links.',
     '- If COMPANY KNOWLEDGE covers the question, answer from it and name the source. Never invent policies, prices or facts.',
     '- When the visitor asks what is on a page or what they will see there, summarize the relevant COMPANY KNOWLEDGE concretely — include prices, options and specific facts when they are present.',
@@ -179,15 +204,12 @@ function buildSystemPrompt(
     '- NEVER present general industry practice ("standard payment systems", "typically", "usually") as this company\'s policy. If COMPANY KNOWLEDGE does not state a specific fact, say the website does not provide it — do not fill the gap with general knowledge.',
     '- If you see visible_errors, acknowledge them and give the concrete next step.',
     '- If the page context includes journey state and the visitor asks where they are or which step they are on, answer with the exact step number and total (e.g. "step 4 of 6 — Insurance").',
-    '- If your answer points the visitor to a specific element on the page (a button, link, field or option they should use), end the reply with a final line containing ONLY <<GUIDE:REFERENCE>> where REFERENCE is that element\'s id or kern-el-N reference from the page context, exactly as listed.',
-    '- You may remember up to three session facts the visitor should not have to repeat (e.g. chosen experience, group size, dates) by appending lines like <<REMEMBER:guest is booking the Eiger hike for 2>> at the very end of your reply, after any <<GUIDE>> line. Never remember sensitive data (payment details, emails, names).',
-    '- When your reply says you will DO something for the visitor (fill, select, click, book), ALWAYS end the reply with the matching <<ACTION:tool_name|{"arg":"value"}>> lines — the action only runs if the visitor confirms it, and a reply that promises an action without its directive does nothing. Example reply with an action:\nI\'ll fill that in for you.\n<<ACTION:fill_field|{"ref":"kern-el-0","value":"Max Mustermann"}>>\nUse ONLY the tools listed below and refs from the page context. If the tool needs information you do not have (e.g. the visitor\'s name or email), ASK for it instead of inventing it. Never propose actions for passwords, payment details or account deletion.',
-    '- When the visitor asks to be shown a button, link or field BY NAME, target the element whose label matches that name most closely — prefer the one inside the current step or current view. If several elements share the name, pick the most specific match; never guess when the labels differ.',
     '- Use plain text with light emphasis only (e.g. **important**). No headings, no tables, no markdown links — the widget renders a compact chat.',
     "- Match the visitor's language.",
     '',
     'CURRENT_PAGE_TYPE: ' + ctx.page_type,
     'CURRENT_URL: ' + ctx.url,
+    'CURRENT_DATE: ' + new Date().toISOString().slice(0, 10) + ' (' + new Date().toLocaleDateString('en-US', { weekday: 'long' }) + ') — use it to resolve relative dates like "Saturday" against the dates in the page context.',
     `DETECTED_INTENT: ${intent.label} (confidence ${intent.confidence.toFixed(2)})`,
     intentBehavior(intent),
     '',

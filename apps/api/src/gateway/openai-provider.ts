@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 import type { GatewayReply, GatewayRequest, ModelGateway } from './types';
+import { OUTPUT_JSON_SCHEMA, parseStructuredOutput } from './output-parser';
 
 const MODEL = process.env.KERN_OPENAI_MODEL ?? 'gpt-4o';
 
@@ -23,6 +24,16 @@ export class OpenAIGateway implements ModelGateway {
     const response = await this.client.chat.completions.create({
       model: MODEL,
       max_tokens: 2048,
+      // Structured outputs (strict): the model is CONSTRAINED to the
+      // KERN response schema — it cannot forget actions or targets
+      response_format: {
+        type: 'json_schema',
+        json_schema: {
+          name: 'kern_assistant_output',
+          strict: true,
+          schema: OUTPUT_JSON_SCHEMA as unknown as Record<string, unknown>,
+        },
+      },
       messages: [
         { role: 'system', content: system },
         ...messages.map((m) => ({ role: m.role, content: m.content })),
@@ -36,14 +47,12 @@ export class OpenAIGateway implements ModelGateway {
       outputTokens: response.usage?.completion_tokens,
     };
 
-    const content = response.choices[0]?.message.content?.trim();
+    const content = response.choices[0]?.message.content?.trim() ?? '';
+    const output = parseStructuredOutput(content);
     if (!content) {
       // Empty or refused completion — degrade gracefully, never pretend
-      return {
-        text: "I can't help with that request. Is there something else I can help you with on this page?",
-        usage,
-      };
+      output.reply = "I can't help with that request. Is there something else I can help you with on this page?";
     }
-    return { text: content, usage };
+    return { output, usage };
   }
 }

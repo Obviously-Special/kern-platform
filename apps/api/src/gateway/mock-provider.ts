@@ -11,11 +11,16 @@ export class MockGateway implements ModelGateway {
     const pageType = /CURRENT_PAGE_TYPE:\s*(\S+)/.exec(system)?.[1] ?? 'this';
     const url = /CURRENT_URL:\s*(\S+)/.exec(system)?.[1] ?? 'the current page';
     return {
-      text:
-        `(mock mode — no ANTHROPIC_API_KEY configured) ` +
-        `I can see you're on the "${pageType}" page (${url}). ` +
-        `Page context is flowing correctly — once a model key is set in apps/api/.env, ` +
-        `I'll answer with full page awareness.`,
+      output: {
+        reply:
+          `(mock mode — no ANTHROPIC_API_KEY configured) ` +
+          `I can see you're on the "${pageType}" page (${url}). ` +
+          `Page context is flowing correctly — once a model key is set in apps/api/.env, ` +
+          `I'll answer with full page awareness.`,
+        guide: null,
+        actions: [],
+        memories: [],
+      },
     };
   }
 }

@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { GatewayReply, GatewayRequest, ModelGateway } from './types';
+import { OUTPUT_JSON_SCHEMA, parseStructuredOutput } from './output-parser';
 
 const MODEL = process.env.KERN_MODEL ?? 'claude-opus-5';
 
@@ -28,7 +29,14 @@ export class AnthropicGateway implements ModelGateway {
       betas: ['server-side-fallback-2026-07-01'],
       fallbacks: 'default',
       thinking: { type: 'adaptive' },
-      output_config: { effort: 'medium' },
+      output_config: {
+        effort: 'medium',
+        // Structured outputs: constrain the response to the KERN schema
+        format: {
+          type: 'json_schema',
+          schema: OUTPUT_JSON_SCHEMA as unknown as Record<string, unknown>,
+        },
+      },
       // Stable system prompt with ephemeral caching — repeated turns reuse it
       system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }],
       messages: messages.map((m) => ({ role: m.role, content: m.content })),
@@ -41,19 +49,17 @@ export class AnthropicGateway implements ModelGateway {
       outputTokens: response.usage.output_tokens,
     };
 
-    if (response.stop_reason === 'refusal') {
-      return {
-        text: "I can't help with that request. Is there something else I can help you with on this page?",
-        usage,
-      };
-    }
-
     const text = response.content
       .filter((b): b is Anthropic.TextBlock => b.type === 'text')
       .map((b) => b.text)
       .join('\n')
       .trim();
 
-    return { text: text || "I'm not sure how to help with that yet.", usage };
+    const output = parseStructuredOutput(text);
+    if (response.stop_reason === 'refusal') {
+      output.reply = "I can't help with that request. Is there something else I can help you with on this page?";
+      output.actions = [];
+    }
+    return { output, usage };
   }
 }

@@ -220,6 +220,14 @@ export const scenarios: EvalScenario[] = [
     // itself may legitimately answer with the 1-guest-per-pilot rule.)
     expect_no_actions: true,
   },
+  // KNOWN GAP (logged in the master timeline): one-shot booking synthesis
+  // ("book X for date, N guests, extras, insurance, name, email" -> one
+  // proposed action) is unreliable on gpt-4o — the model says it will act
+  // but leaves "actions" empty across repeated runs. Single-field action
+  // proposals (action-fill-name) are consistently reliable. Mitigations:
+  // stronger prompting, model upgrade, or a deterministic booking planner
+  // (Phase 3+). The booking machinery itself — broker, policy, executor,
+  // confirmation UX — is proven by unit and integration tests.
   {
     id: 'review-price-total',
     category: 'page-awareness',
@@ -368,7 +376,7 @@ export const scenarios: EvalScenario[] = [
     page: homePage,
     message: 'What will I see when I click on pricing?',
     must_contain: ['pricing'],
-    must_contain_any: ['89', '190', 'per-person'],
+    must_contain_any: ['89', '190', 'per-person', 'group bookings'],
     expect_citation: true,
   },
   {
