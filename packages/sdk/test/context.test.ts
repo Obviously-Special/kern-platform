@@ -80,4 +80,20 @@ describe('capturePageContext — element refs for guide mode', () => {
     expect(ids).toContain('real-button');
     expect(ids).not.toContain('widget-button');
   });
+
+  it('captures definition pairs (price breakdowns) and list items in the description', () => {
+    document.body.innerHTML = `
+      <main>
+        <dl>
+          <div><dt>Base price</dt><dd>CHF 178</dd></div>
+          <div><dt>Weekend surcharge</dt><dd>+ CHF 27</dd></div>
+          <div><dt>Total</dt><dd>CHF 205</dd></div>
+        </dl>
+        <ol><li>1. Experience</li><li>2. Date</li></ol>
+      </main>`;
+    const ctx = capturePageContext();
+    expect(ctx.visible_text.description).toContain('Base price: CHF 178');
+    expect(ctx.visible_text.description).toContain('Total: CHF 205');
+    expect(ctx.visible_text.description).toContain('1. Experience');
+  });
 });

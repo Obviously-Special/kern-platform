@@ -141,13 +141,25 @@ export function capturePageContext(): PageContext {
     .slice(0, 5)
     .map((h) => h.textContent?.trim().replace(/\s+/g, ' '))
     .filter((t): t is string => Boolean(t && t.length <= 200));
-  // What the visitor is actually reading — the page's own words, compacted
-  const description =
-    Array.from(document.querySelectorAll('main p'))
-      .map((p) => p.textContent?.trim().replace(/\s+/g, ' '))
-      .filter((t): t is string => Boolean(t))
-      .join(' ')
-      .slice(0, 600) || undefined;
+  // What the visitor is actually reading — the page's own words, compacted.
+  // Paragraphs + definition pairs (price breakdowns, specs) + list items.
+  const keyContent: string[] = [];
+  document.querySelectorAll('main p').forEach((p) => {
+    const t = p.textContent?.trim().replace(/\s+/g, ' ');
+    if (t) keyContent.push(t);
+  });
+  document.querySelectorAll('main dl').forEach((dl) => {
+    dl.querySelectorAll('dt').forEach((dt) => {
+      const label = dt.textContent?.trim().replace(/\s+/g, ' ');
+      const value = dt.nextElementSibling?.textContent?.trim().replace(/\s+/g, ' ');
+      if (label && value) keyContent.push(`${label}: ${value}`);
+    });
+  });
+  document.querySelectorAll('main li').forEach((li) => {
+    const t = li.textContent?.trim().replace(/\s+/g, ' ');
+    if (t && t.length <= 120) keyContent.push(t);
+  });
+  const description = keyContent.join(' ').slice(0, 800) || undefined;
   const errors = collectVisibleErrors();
   const elements = selectRelevantElements();
   const entities = extractEntities();

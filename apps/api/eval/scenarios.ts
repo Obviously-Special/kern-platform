@@ -66,6 +66,25 @@ const accountPage = page('/account', 'account', ['My account'], {
   elements: [{ role: 'button', tag: 'button', label: 'Modify booking' }],
 });
 
+// Step 6 — the review breakdown (dl/dt/dd pairs now travel in the description)
+const reviewPage = page('/booking', 'booking', ['Book your adventure', 'Review your booking'], {
+  visible_text: {
+    title: 'Book your adventure',
+    headings: ['Book your adventure', 'Review your booking'],
+    description:
+      'Review your booking Base price: CHF 178 Weekend surcharge (15%): + CHF 27 Equipment rental: + CHF 40 Insurance: + CHF 29 Total: CHF 274',
+  },
+  elements: [{ ref: 'kern-el-0', role: 'button', tag: 'button', label: 'Confirm booking · CHF 274' }],
+  journey: {
+    journey_id: 'booking',
+    total_steps: 6,
+    current_step: 6,
+    current_label: 'review',
+    source: 'aria-current',
+    confidence: 0.95,
+  },
+});
+
 // ---- the golden set ------------------------------------------------------------
 
 export const scenarios: EvalScenario[] = [
@@ -164,6 +183,21 @@ export const scenarios: EvalScenario[] = [
     },
     message: 'Which button should I press to continue?',
     expect_guide: 'kern-el-0',
+  },
+  {
+    id: 'review-price-total',
+    category: 'page-awareness',
+    page: reviewPage,
+    message: 'What is my total price?',
+    must_contain: ['274'],
+  },
+  {
+    id: 'review-surcharge-explanation',
+    category: 'page-awareness',
+    page: reviewPage,
+    message: 'Why is there a weekend surcharge in my total?',
+    must_contain_any: ['15%', 'weekend'],
+    expect_citation: true,
   },
   {
     id: 'guide-rock-climbing-option',
