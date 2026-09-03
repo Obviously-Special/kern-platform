@@ -54,5 +54,25 @@ export const demoSiteMap: SitePageMap = {
       pageTypes: ['booking', 'help'],
       text: 'Online bookings close at 18:00 the evening before the start date. For last-minute availability call +41 33 555 18 20 from 8:00.',
     },
+    {
+      heading: 'Equipment rental',
+      pageTypes: ['booking'],
+      text: 'Equipment rental costs CHF 40 per person — bike, helmet or climbing gear depending on the experience.',
+    },
+    {
+      heading: 'Collection point arrangement',
+      pageTypes: ['booking'],
+      text: 'Collection point arrangement is free: we arrange the meeting point for your group, including hotel collection where available.',
+    },
+    {
+      heading: 'Booking process',
+      pageTypes: ['booking'],
+      text: 'The booking flow has 6 steps: 1. Choose your experience, 2. Date & group, 3. Extras, 4. Insurance, 5. Your details, 6. Review & confirm. An insurance option must be selected at step 4 before continuing.',
+    },
+    {
+      heading: 'Contact information',
+      pageTypes: [], // site-wide
+      text: 'Phone: +41 33 555 18 20 (from 8:00). Email: hello@bergblick.example. Address: Dorfstrasse 12, 3818 Grindelwald. The base is open daily from 8:00 to 18:00.',
+    },
   ],
 };

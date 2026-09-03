@@ -1,0 +1,34 @@
+name: Eval
+
+# Manual only: the M1 eval costs real model tokens and takes minutes, so
+# it must never run on every push. Run it before model/prompt/retrieval
+# changes ship (doc 3 §14: "pre-deploy quality gate").
+on:
+  workflow_dispatch:
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Build demo site (eval crawls it for knowledge)
+        run: npm run build -w @kern/demo-site
+      - name: Start demo site
+        run: nohup npm run start -w @kern/demo-site > /tmp/demo-site.log 2>&1 &
+      - name: Wait for demo site
+        run: |
+          for i in $(seq 1 60); do
+            curl -sf http://localhost:3000 > /dev/null && exit 0
+            sleep 2
+          done
+          echo "demo site did not come up"; cat /tmp/demo-site.log; exit 1
+      - name: Run M1 eval
+        env:
+          # Repository secret: OPENAI_API_KEY (Settings → Secrets and variables → Actions)
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: npm run eval -w @kern/api

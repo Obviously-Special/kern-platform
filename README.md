@@ -31,6 +31,16 @@ The assistant knows the site two ways:
 
 A deterministic retriever selects relevant excerpts per question + page and injects them into the prompt with provenance; answers carry citations (shown in the widget). Upgrade path: embeddings/hybrid retrieval when content volume justifies it.
 
+## M1 eval suite
+
+The formal quality gate (doc 3 §14): 29 golden scenarios across six categories (page awareness, knowledge, navigation, friction, adversarial, cross-page), each with deterministic checks. It drives the real app with the real model.
+
+```bash
+npm run eval -w @kern/api   # needs the demo site running + a provider key
+```
+
+Exits non-zero below the 80% pass threshold. CI runs it as a manual workflow (`.github/workflows/eval.yml` — requires the `OPENAI_API_KEY` repository secret). Not part of `npm test`: it costs tokens.
+
 ## Guiding principles
 
 - Never fork the core per customer — customization lives in configuration, connectors, adapters, policies, page maps.

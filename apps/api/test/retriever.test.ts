@@ -35,6 +35,12 @@ describe('tokenize', () => {
     expect(terms).not.toContain('the');
     expect(terms).not.toContain('what');
   });
+
+  it('stems longer plurals so "weekends" also matches "weekend" (eval regression)', () => {
+    const terms = tokenize('Why are weekends more expensive?');
+    expect(terms).toContain('weekend');
+    expect(terms).toContain('expensive');
+  });
 });
 
 describe('retrieve', () => {
@@ -103,6 +109,16 @@ describe('retrieve', () => {
     const result = retrieve([...homeChunks, pricingChunk], 'pricing', pageContext('home', '/'));
     expect(result[0]?.chunk.heading).toBe('Pricing');
     expect(result.some((r) => r.chunk.heading === 'Pricing')).toBe(true);
+  });
+
+  it('includes site-wide knowledge (empty pageTypes) in the no-match fallback', () => {
+    const siteWide = chunk({
+      heading: 'Contact information',
+      text: 'Phone: +41 33 555 18 20.',
+      pageTypes: [],
+    });
+    const result = retrieve([siteWide], 'xyzzy-no-match', pageContext('home', '/'));
+    expect(result.map((r) => r.chunk.heading)).toContain('Contact information');
   });
 
   it('expands selected chunks with siblings from the same page', () => {

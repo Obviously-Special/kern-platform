@@ -25,11 +25,19 @@ const STOPWORDS = new Set([
 ]);
 
 export function tokenize(text: string): string[] {
-  return text
+  const tokens = text
     .toLowerCase()
     .replace(/[^a-z0-9äöüéèà\s]/g, ' ')
     .split(/\s+/)
     .filter((t) => t.length > 2 && !STOPWORDS.has(t));
+  // Light stemming: also match the singular of longer plural forms
+  // ("weekends" must find a chunk about "weekend" surcharges)
+  const expanded: string[] = [];
+  for (const t of tokens) {
+    expanded.push(t);
+    if (t.length > 4 && t.endsWith('s')) expanded.push(t.slice(0, -1));
+  }
+  return [...new Set(expanded)];
 }
 
 export interface RetrievedChunk {
@@ -38,9 +46,14 @@ export interface RetrievedChunk {
   matchedTerms: string[];
 }
 
+/** Empty pageTypes = site-wide knowledge (matches every page). */
+function matchesPage(chunk: KnowledgeChunk, pageType: PageContext['page_type']): boolean {
+  return chunk.pageTypes.length === 0 || chunk.pageTypes.includes(pageType);
+}
+
 function pageBonus(chunk: KnowledgeChunk, pageContext: PageContext): number {
   let bonus = 0;
-  if (chunk.pageTypes.includes(pageContext.page_type)) bonus += 1;
+  if (matchesPage(chunk, pageContext.page_type)) bonus += 1;
   if (pageContext.route && pageContext.route !== '/' && chunk.url.includes(pageContext.route)) bonus += 1;
   return bonus;
 }
@@ -70,9 +83,11 @@ export function retrieve(
 
   const withHits = scored.filter((r) => r.matchedTerms.length > 0);
   if (withHits.length === 0) {
-    // No term matched anywhere — fall back to knowledge bound to the visitor's page
-    return chunks
-      .filter((c) => c.pageTypes.includes(pageContext.page_type))
+    // No term matched anywhere — fall back to knowledge bound to the
+    // visitor's page, then site-wide knowledge
+    const bound = chunks.filter((c) => matchesPage(c, pageContext.page_type));
+    const siteWide = chunks.filter((c) => c.pageTypes.length === 0 && !matchesPage(c, pageContext.page_type));
+    return [...bound, ...siteWide]
       .slice(0, limit)
       .map((chunk) => ({ chunk, score: 0, matchedTerms: [] }));
   }
