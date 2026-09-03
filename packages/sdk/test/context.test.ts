@@ -37,4 +37,29 @@ describe('capturePageContext — element refs for guide mode', () => {
     const ctx = capturePageContext();
     expect(ctx.elements[0]).toMatchObject({ id: 'booking-continue', ref: 'kern-el-0' });
   });
+
+  it('reads labels from wrapping <label> elements — inputs are no longer anonymous', () => {
+    document.body.innerHTML = `
+      <label><input type="radio" name="exp"> Intro to Rock Climbing</label>
+      <label><input type="radio" name="exp"> Tandem Paragliding</label>`;
+    const ctx = capturePageContext();
+    expect(ctx.elements[0]?.label).toBe('Intro to Rock Climbing');
+    expect(ctx.elements[1]?.label).toBe('Tandem Paragliding');
+  });
+
+  it('prefers aria-label and falls back to placeholder', () => {
+    document.body.innerHTML = `
+      <label for="email">Email address</label>
+      <input id="email" aria-label="Your email" />
+      <input placeholder="Search tours" />`;
+    const ctx = capturePageContext();
+    expect(ctx.elements[0]?.label).toBe('Your email');
+    expect(ctx.elements[1]?.label).toBe('Search tours');
+  });
+
+  it('captures the page description from visible paragraphs', () => {
+    document.body.innerHTML = `<main><p>First paragraph of text.</p><p>Second paragraph.</p></main>`;
+    const ctx = capturePageContext();
+    expect(ctx.visible_text.description).toBe('First paragraph of text. Second paragraph.');
+  });
 });

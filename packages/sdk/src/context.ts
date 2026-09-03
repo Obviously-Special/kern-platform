@@ -25,8 +25,37 @@ export function getElementByRef(ref: string): HTMLElement | null {
   return elementRegistry.get(ref) ?? null;
 }
 
+/**
+ * Accessible name for a form control — aria-label, associated <label>
+ * elements (the .labels API), aria-labelledby, placeholder, then inner
+ * text. Without this, inputs render as anonymous elements to the model.
+ */
+function elementLabel(el: HTMLElement): string | undefined {
+  const ariaLabel = el.getAttribute('aria-label');
+  if (ariaLabel) return ariaLabel.trim().slice(0, 80);
+
+  const labeled = (el as HTMLInputElement).labels?.[0];
+  if (labeled) {
+    const text = (labeled.innerText || labeled.textContent || '').trim().replace(/\s+/g, ' ');
+    if (text) return text.slice(0, 80);
+  }
+
+  const labelledBy = el.getAttribute('aria-labelledby');
+  if (labelledBy) {
+    const ref = document.getElementById(labelledBy);
+    const text = ref ? (ref.innerText || ref.textContent || '').trim().replace(/\s+/g, ' ') : '';
+    if (text) return text.slice(0, 80);
+  }
+
+  const placeholder = el.getAttribute('placeholder');
+  if (placeholder) return placeholder.slice(0, 80);
+
+  const inner = (el.innerText || el.textContent || '').trim().replace(/\s+/g, ' ');
+  return inner ? inner.slice(0, 80) : undefined;
+}
+
 /** Buttons, links and inputs a visitor can actually act on. */
-function selectRelevantElements(limit = 25): PageElement[] {
+function selectRelevantElements(limit = 40): PageElement[] {
   const nodes = document.querySelectorAll<HTMLElement>(
     'button, a[href], input, select, textarea',
   );
@@ -34,10 +63,6 @@ function selectRelevantElements(limit = 25): PageElement[] {
   const out: PageElement[] = [];
   for (const el of nodes) {
     if (!isVisible(el)) continue;
-    const label =
-      el.getAttribute('aria-label') ??
-      (el.innerText || el.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 80) ??
-      undefined;
     const ref = `kern-el-${out.length}`;
     elementRegistry.set(ref, el);
     out.push({
@@ -45,7 +70,7 @@ function selectRelevantElements(limit = 25): PageElement[] {
       ref,
       role: el.getAttribute('role') ?? undefined,
       tag: el.tagName.toLowerCase(),
-      label: label || undefined,
+      label: elementLabel(el),
       href: el instanceof HTMLAnchorElement ? el.getAttribute('href') ?? undefined : undefined,
     });
     if (out.length >= limit) break;
@@ -83,6 +108,13 @@ export function capturePageContext(): PageContext {
     .slice(0, 5)
     .map((h) => h.textContent?.trim().replace(/\s+/g, ' '))
     .filter((t): t is string => Boolean(t && t.length <= 200));
+  // What the visitor is actually reading — the page's own words, compacted
+  const description =
+    Array.from(document.querySelectorAll('main p'))
+      .map((p) => p.textContent?.trim().replace(/\s+/g, ' '))
+      .filter((t): t is string => Boolean(t))
+      .join(' ')
+      .slice(0, 600) || undefined;
   const errors = collectVisibleErrors();
   const elements = selectRelevantElements();
   const journey = detectJourneyState(route, document) ?? undefined;
@@ -91,7 +123,7 @@ export function capturePageContext(): PageContext {
     url,
     route,
     page_type: inferPageType(route),
-    visible_text: { title, headings, description: undefined },
+    visible_text: { title, headings, description },
     elements,
     errors,
     entities: [],

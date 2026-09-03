@@ -11,6 +11,25 @@ import type { GuideTarget, PageElement } from '@kern/contracts';
  */
 const GUIDE_DIRECTIVE = /<<GUIDE:([^>]+)>>/;
 
+/**
+ * Deterministic fallback when the model forgot the directive: if the
+ * reply mentions EXACTLY ONE element label from the page context, guide
+ * to it. Multiple matches = ambiguous — never guess (doc 2: "prefer one
+ * targeted question over inventing context").
+ */
+export function inferGuideFromReply(reply: string, elements: PageElement[]): GuideTarget | undefined {
+  const lower = reply.toLowerCase();
+  const candidates = elements.filter(
+    (e) => e.label && lower.includes(e.label.toLowerCase()),
+  );
+  if (candidates.length !== 1) return undefined;
+  const el = candidates[0]!;
+  // The browser must be able to resolve the target — an element with
+  // neither id nor ref would fail schema validation downstream.
+  if (!el.id && !el.ref) return undefined;
+  return { element_id: el.id, element_ref: el.ref, label: el.label };
+}
+
 export function parseGuideDirective(
   reply: string,
   contextElements: PageElement[],

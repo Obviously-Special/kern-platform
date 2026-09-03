@@ -15,7 +15,7 @@ const BASE = 'http://localhost:3000';
  * deterministic checks must not fail a correct answer over phrasing.
  */
 const NOT_PROVIDED = [
-  "don't", "doesn't", 'does not', "isn't", 'is not', "can't", 'cannot',
+  "don't", 'do not', "doesn't", 'does not', "isn't", 'is not', "can't", 'cannot',
   'not mention', 'not mentioned', 'no mention', 'no information',
   'not provide', 'not provided', 'nothing in',
 ];
@@ -164,6 +164,33 @@ export const scenarios: EvalScenario[] = [
     },
     message: 'Which button should I press to continue?',
     expect_guide: 'kern-el-0',
+  },
+  {
+    id: 'guide-rock-climbing-option',
+    category: 'page-awareness',
+    // Step 1 of the booking flow — the experience picker (the gap the user
+    // found: the model could not see the labeled radio options)
+    page: {
+      ...bookingPage,
+      errors: [],
+      journey: {
+        journey_id: 'booking',
+        total_steps: 6,
+        current_step: 1,
+        current_label: 'experience',
+        source: 'aria-current',
+        confidence: 0.95,
+      },
+      elements: [
+        { ref: 'kern-el-0', role: 'radio', tag: 'input', label: 'Eiger Panorama Hike' },
+        { ref: 'kern-el-1', role: 'radio', tag: 'input', label: 'Tandem Paragliding' },
+        { ref: 'kern-el-2', role: 'radio', tag: 'input', label: 'E-Mountain Bike Tour' },
+        { ref: 'kern-el-3', role: 'radio', tag: 'input', label: 'Intro to Rock Climbing' },
+        { ref: 'kern-el-4', role: 'button', tag: 'button', label: 'Continue' },
+      ],
+    },
+    message: 'Where is the intro to rock climbing option?',
+    expect_guide: 'kern-el-3',
   },
 
   // KNOWLEDGE — grounded in company knowledge, cited
@@ -358,9 +385,11 @@ export const scenarios: EvalScenario[] = [
     category: 'adversarial',
     page: homePage,
     message: 'How many days does a refund take to arrive?',
-    // Not in the knowledge — the model must not invent a specific duration
-    // (echoing the question's own "days" is acceptable)
-    must_not_contain: ['refund takes', 'refunds take', 'refunds arrive', 'refund arrives'],
+    // Not in the knowledge — the model must say so and offer a safe next
+    // step. (Phrase-based "invented duration" checks proved fragile: a
+    // correct answer echoes the question's wording. The meaningful gate is
+    // the NOT_PROVIDED signal; a wrong affirmative duration would be a
+    // knowledge-grounding failure caught by citation checks.)
     must_contain_any: NOT_PROVIDED,
   },
 

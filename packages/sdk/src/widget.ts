@@ -65,6 +65,12 @@ const CSS = `
   padding: 0 16px; font-weight: 650; font-size: 13.5px; cursor: pointer;
 }
 .send:disabled { opacity: 0.5; cursor: default; }
+
+/* Guide pulse: expanding rings draw the eye to the target element */
+@keyframes kern-pulse {
+  0% { transform: scale(1); opacity: 0.9; }
+  100% { transform: scale(1.8); opacity: 0; }
+}
 `;
 
 export class KernWidget {
@@ -188,14 +194,29 @@ export class KernWidget {
     const target = guide.element_id ?? guide.element_ref ?? '';
     postEvent(this.config, { type: 'guide_started', data: { target_element_id: target } });
     el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+    // Outline holds the element while the pulse rings draw the eye
     const previous = el.style.outline;
     el.style.outline = '3px solid #C0FF43';
     el.style.outlineOffset = '2px';
     el.style.borderRadius = el.style.borderRadius || '4px';
+
+    // Expanding rings — three staggered pulses over the target's rect
+    const rect = el.getBoundingClientRect();
+    const fx = document.createElement('div');
+    fx.style.cssText = `position: fixed; z-index: 2147483001; pointer-events: none; left: ${rect.left}px; top: ${rect.top}px; width: ${rect.width}px; height: ${rect.height}px;`;
+    for (let i = 0; i < 3; i++) {
+      const ring = document.createElement('div');
+      ring.style.cssText = `position: absolute; inset: 0; border: 3px solid #C0FF43; border-radius: 8px; opacity: 0; animation: kern-pulse 1s ease-out ${i * 0.65}s forwards;`;
+      fx.appendChild(ring);
+    }
+    this.root.appendChild(fx);
+
     window.setTimeout(() => {
+      fx.remove();
       el.style.outline = previous;
       postEvent(this.config, { type: 'guide_completed', data: { target_element_id: target } });
-    }, 5000);
+    }, 3200);
   }
 
   private async send() {

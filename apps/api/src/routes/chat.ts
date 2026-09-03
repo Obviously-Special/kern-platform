@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { ChatRequestSchema, ChatResponseSchema, type PageContext } from '@kern/contracts';
 import { createGateway } from '../gateway/index';
-import { parseGuideDirective } from '../guide';
+import { inferGuideFromReply, parseGuideDirective } from '../guide';
 import { getAllChunks } from '../knowledge/store';
 import { retrieve, type RetrievedChunk } from '../knowledge/retriever';
 
@@ -41,10 +41,11 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
       if (result.usage) {
         app.log.info({ ...result.usage, site_id: site.site.site_id }, 'gateway call');
       }
-      const { reply: cleanReply, guide } = parseGuideDirective(result.text, page_context.elements);
+      const parsed = parseGuideDirective(result.text, page_context.elements);
+      const guide = parsed.guide ?? inferGuideFromReply(parsed.reply, page_context.elements);
       return ChatResponseSchema.parse({
         message_id: randomUUID(),
-        reply: cleanReply,
+        reply: parsed.reply,
         mode: guide ? 'guide' : 'answer',
         citations: buildCitations(retrieved),
         guide,
@@ -97,6 +98,7 @@ function buildSystemPrompt(ctx: PageContext, retrieved: RetrievedChunk[]): strin
     'Rules:',
     '- Anchor every answer to the current page context below.',
     '- Prefer moving the visitor forward over long explanations.',
+    '- When your answer refers to a specific page element (a button, link, field or option), ALWAYS end the reply with <<GUIDE:REFERENCE>> on its own final line, where REFERENCE is that element\'s id or kern-el-N reference from the page context. The directive must reference exactly the element your answer is about. Example reply:\nThe Continue button is below the options.\n<<GUIDE:kern-el-0>>\nIf no specific element is involved, omit the directive.',
     '- Only reference page elements that are listed in the context. Never invent buttons or links.',
     '- If COMPANY KNOWLEDGE covers the question, answer from it and name the source. Never invent policies, prices or facts.',
     '- When the visitor asks what is on a page or what they will see there, summarize the relevant COMPANY KNOWLEDGE concretely — include prices, options and specific facts when they are present.',
@@ -104,6 +106,7 @@ function buildSystemPrompt(ctx: PageContext, retrieved: RetrievedChunk[]): strin
     '- If you see visible_errors, acknowledge them and give the concrete next step.',
     '- If the page context includes journey state and the visitor asks where they are or which step they are on, answer with the exact step number and total (e.g. "step 4 of 6 — Insurance").',
     '- If your answer points the visitor to a specific element on the page (a button, link, field or option they should use), end the reply with a final line containing ONLY <<GUIDE:REFERENCE>> where REFERENCE is that element\'s id or kern-el-N reference from the page context, exactly as listed.',
+    '- When the visitor asks to be shown a button, link or field BY NAME, target the element whose label matches that name most closely — prefer the one inside the current step or current view. If several elements share the name, pick the most specific match; never guess when the labels differ.',
     '- Use plain text with light emphasis only (e.g. **important**). No headings, no tables, no markdown links — the widget renders a compact chat.',
     "- Match the visitor's language.",
     '',
