@@ -12,15 +12,22 @@ describe('pulseElement — the guide pulse', () => {
     vi.useRealTimers();
   });
 
-  it('appends the pulse rings INSIDE the target element (they travel with it during scroll)', () => {
+  it('renders three staggered rings in a body-level overlay (never inside the target — inputs reject children)', () => {
     const el = document.getElementById('target')!;
     pulseElement(el);
 
-    const fx = el.querySelector('div');
+    expect(el.querySelector('div')).toBeNull(); // target untouched
+    const fx = document.body.querySelector('div');
     expect(fx).not.toBeNull();
-    expect(fx!.children.length).toBe(3); // three staggered rings
-    expect(fx!.style.position).toBe('absolute');
-    expect(el.style.position).toBe('relative'); // anchor for the absolute rings
+    expect(fx!.children.length).toBe(3);
+    expect(fx!.style.position).toBe('fixed');
+  });
+
+  it('works for void elements like <input>', () => {
+    document.body.innerHTML = `<input type="radio" id="radio">`;
+    const el = document.getElementById('radio')!;
+    expect(() => pulseElement(el)).not.toThrow();
+    expect(document.body.querySelectorAll('div').length).toBeGreaterThan(0);
   });
 
   it('injects the namespaced keyframes into the HOST document once', () => {
@@ -30,11 +37,12 @@ describe('pulseElement — the guide pulse', () => {
     expect(document.querySelectorAll('#kernsdk-pulse-style')).toHaveLength(1);
   });
 
-  it('cleans up: removes rings and restores the element position', () => {
+  it('cleans up after the duration: overlay removed, rAF cancelled', () => {
     const el = document.getElementById('target')!;
-    pulseElement(el);
+    const cleanup = pulseElement(el, 3200);
     vi.advanceTimersByTime(3300);
-    expect(el.querySelector('div')).toBeNull();
-    expect(el.style.position).toBe('');
+    expect(document.body.querySelector('div')).toBeNull();
+    // cleanup stays idempotent
+    expect(() => cleanup()).not.toThrow();
   });
 });
