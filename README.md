@@ -11,6 +11,10 @@
 - `C:\KERN\AI_Customer_Journey_Platform_Modular_Architecture_Onboarding.docx` — architecture & onboarding
 - `C:\KERN\KERN_Master_Timeline.md` — **the single sequencing reference**: phases, exit criteria, milestones, decisions log
 
+## Known issues
+
+See [BUGS.md](BUGS.md) — one entry per bug with verification state and next steps.
+
 ## Repository layout
 
 ```
