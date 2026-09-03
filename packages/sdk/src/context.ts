@@ -15,20 +15,34 @@ function isVisible(el: Element): boolean {
   return html.offsetParent !== null || html.getClientRects().length > 0;
 }
 
+/**
+ * ref → live node registry: guide mode resolves kern-el-N references back
+ * to the elements that were captured, even when the site provides no ids.
+ */
+const elementRegistry = new Map<string, HTMLElement>();
+
+export function getElementByRef(ref: string): HTMLElement | null {
+  return elementRegistry.get(ref) ?? null;
+}
+
 /** Buttons, links and inputs a visitor can actually act on. */
 function selectRelevantElements(limit = 25): PageElement[] {
   const nodes = document.querySelectorAll<HTMLElement>(
     'button, a[href], input, select, textarea',
   );
+  elementRegistry.clear();
   const out: PageElement[] = [];
   for (const el of nodes) {
     if (!isVisible(el)) continue;
     const label =
       el.getAttribute('aria-label') ??
-      (el.innerText || '').trim().replace(/\s+/g, ' ').slice(0, 80) ??
+      (el.innerText || el.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 80) ??
       undefined;
+    const ref = `kern-el-${out.length}`;
+    elementRegistry.set(ref, el);
     out.push({
       id: el.id || undefined,
+      ref,
       role: el.getAttribute('role') ?? undefined,
       tag: el.tagName.toLowerCase(),
       label: label || undefined,

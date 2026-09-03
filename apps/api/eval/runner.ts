@@ -36,10 +36,14 @@ function evaluate(scenario: EvalScenario, reply: string, citations: string[]): s
   return failures;
 }
 
-function evaluateGuide(scenario: EvalScenario, guide: { element_id?: string } | undefined): string[] {
+function evaluateGuide(
+  scenario: EvalScenario,
+  guide: { element_id?: string; element_ref?: string } | undefined,
+): string[] {
   if (!scenario.expect_guide) return [];
-  if (guide?.element_id === scenario.expect_guide) return [];
-  return [`expected guide to ${scenario.expect_guide}, got ${guide?.element_id ?? 'none'}`];
+  const actual = guide?.element_id ?? guide?.element_ref;
+  if (actual === scenario.expect_guide) return [];
+  return [`expected guide to ${scenario.expect_guide}, got ${actual ?? 'none'}`];
 }
 
 async function main(): Promise<void> {

@@ -23,6 +23,12 @@ export type PageType = z.infer<typeof PageTypeSchema>;
 /** A relevant interactive element the SDK selected (not every DOM node). */
 export const PageElementSchema = z.object({
   id: z.string().optional(),
+  /**
+   * SDK-assigned stable reference (kern-el-N) so guide mode can target
+   * elements that have no id — works on any site without site changes
+   * (doc 3 §5.3: stable identifiers where possible, robust selectors as fallback).
+   */
+  ref: z.string().optional(),
   role: z.string().optional(), // ARIA role, e.g. 'button', 'textbox'
   tag: z.string().optional(), // e.g. 'button', 'a', 'input'
   label: z.string().optional(), // accessible name

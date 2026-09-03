@@ -1,10 +1,10 @@
 import Link from 'next/link';
 
 const nav = [
-  { href: '/services', label: 'Services' },
-  { href: '/pricing', label: 'Pricing' },
-  { href: '/help', label: 'Help & FAQ' },
-  { href: '/account', label: 'Account' },
+  { href: '/services', label: 'Services', id: 'nav-services' },
+  { href: '/pricing', label: 'Pricing', id: 'nav-pricing' },
+  { href: '/help', label: 'Help & FAQ', id: 'nav-help' },
+  { href: '/account', label: 'Account', id: 'nav-account' },
 ];
 
 export default function Header() {
@@ -23,6 +23,7 @@ export default function Header() {
           {nav.map((item) => (
             <Link
               key={item.href}
+              id={item.id}
               href={item.href}
               className="text-sm font-medium text-stone-600 transition-colors hover:text-pine-800"
             >
@@ -30,6 +31,7 @@ export default function Header() {
             </Link>
           ))}
           <Link
+            id="nav-book-now"
             href="/booking"
             className="rounded-lg bg-pine-700 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-pine-800"
           >

@@ -28,4 +28,12 @@ describe('parseGuideDirective (guide mode v1)', () => {
     expect(reply).toBe('Here.');
     expect(guide).toBeUndefined();
   });
+
+  it('resolves kern-el-N refs when the element has no id (sites without ids stay guidable)', () => {
+    const noIdElements: PageElement[] = [
+      { ref: 'kern-el-0', tag: 'a', label: 'Pricing', href: '/pricing' },
+    ];
+    const { guide } = parseGuideDirective('See the link.\n<<GUIDE:kern-el-0>>', noIdElements);
+    expect(guide).toEqual({ element_id: undefined, element_ref: 'kern-el-0', label: 'Pricing' });
+  });
 });

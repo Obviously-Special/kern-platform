@@ -39,8 +39,9 @@ function page(route: string, page_type: PageContext['page_type'], headings: stri
 
 const homePage = page('/', 'home', ['Your mountain day, guided by people who know every trail.'], {
   elements: [
-    { tag: 'a', label: 'Book your adventure', href: '/booking' },
-    { tag: 'a', label: 'Explore services', href: '/services' },
+    { id: 'nav-pricing', ref: 'kern-el-2', tag: 'a', label: 'Pricing', href: '/pricing' },
+    { id: 'nav-account', ref: 'kern-el-3', tag: 'a', label: 'Account', href: '/account' },
+    { id: 'nav-book-now', ref: 'kern-el-4', tag: 'a', label: 'Book now', href: '/booking' },
   ],
 });
 
@@ -140,6 +141,29 @@ export const scenarios: EvalScenario[] = [
     },
     message: 'How do I pick the 5th of September?',
     expect_guide: 'date-2026-09-05',
+  },
+  {
+    id: 'guide-pricing-nav',
+    category: 'page-awareness',
+    page: homePage,
+    message: 'Can you show me the pricing page?',
+    expect_guide: 'nav-pricing',
+  },
+  {
+    id: 'guide-by-ref',
+    category: 'page-awareness',
+    // Element WITHOUT an id — the SDK ref path must keep sites guidable
+    page: {
+      ...bookingPage,
+      errors: [],
+      elements: [
+        { ref: 'kern-el-0', role: 'button', tag: 'button', label: 'Continue' },
+        { ref: 'kern-el-1', role: 'radio', tag: 'input', label: 'Activity protection' },
+        { ref: 'kern-el-2', role: 'radio', tag: 'input', label: 'Full cover' },
+      ],
+    },
+    message: 'Which button should I press to continue?',
+    expect_guide: 'kern-el-0',
   },
 
   // KNOWLEDGE — grounded in company knowledge, cited

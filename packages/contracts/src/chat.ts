@@ -29,10 +29,16 @@ export type AssistantMode = z.infer<typeof AssistantModeSchema>;
  * (guide mode v1). Always an element from the page context the model was
  * shown; the API never emits targets it didn't receive.
  */
-export const GuideTargetSchema = z.object({
-  element_id: z.string().min(1),
-  label: z.string().max(200).optional(),
-});
+export const GuideTargetSchema = z
+  .object({
+    element_id: z.string().min(1).optional(),
+    /** SDK-assigned reference when the element has no id. */
+    element_ref: z.string().min(1).optional(),
+    label: z.string().max(200).optional(),
+  })
+  .refine((t) => t.element_id !== undefined || t.element_ref !== undefined, {
+    message: 'guide target requires element_id or element_ref',
+  });
 export type GuideTarget = z.infer<typeof GuideTargetSchema>;
 
 export const ChatResponseSchema = z.object({

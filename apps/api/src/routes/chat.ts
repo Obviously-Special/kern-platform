@@ -103,7 +103,7 @@ function buildSystemPrompt(ctx: PageContext, retrieved: RetrievedChunk[]): strin
     '- Use COMPANY KNOWLEDGE directly whenever any excerpt relates to the question or the page the visitor asks about. The "does not provide" fallback applies ONLY when nothing in the knowledge relates to the question — if related knowledge exists, answer from it instead.',
     '- If you see visible_errors, acknowledge them and give the concrete next step.',
     '- If the page context includes journey state and the visitor asks where they are or which step they are on, answer with the exact step number and total (e.g. "step 4 of 6 — Insurance").',
-    '- If your answer points the visitor to a specific element on the page (a button, field or option they should use), end the reply with a final line containing ONLY <<GUIDE:ID>> where ID is that element\'s id from the page context, exactly as listed.',
+    '- If your answer points the visitor to a specific element on the page (a button, link, field or option they should use), end the reply with a final line containing ONLY <<GUIDE:REFERENCE>> where REFERENCE is that element\'s id or kern-el-N reference from the page context, exactly as listed.',
     '- Use plain text with light emphasis only (e.g. **important**). No headings, no tables, no markdown links — the widget renders a compact chat.',
     "- Match the visitor's language.",
     '',

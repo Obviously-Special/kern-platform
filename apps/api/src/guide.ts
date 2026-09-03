@@ -21,12 +21,20 @@ export function parseGuideDirective(
   // The directive is internal syntax — always stripped from the visible
   // reply, whether or not the target is valid.
   const cleanReply = reply.replace(match[0], '').trim();
-  const elementId = match[1]!.trim();
-  const element = contextElements.find((e) => e.id === elementId);
+  const target = match[1]!.trim();
+  // Resolve by element id first, then by the SDK's kern-el-N reference —
+  // sites without ids stay fully guidable.
+  const element =
+    contextElements.find((e) => e.id === target) ??
+    contextElements.find((e) => e.ref === target);
   if (!element) return { reply: cleanReply }; // unknown target — drop the guide only
 
   return {
     reply: cleanReply,
-    guide: { element_id: elementId, label: element.label },
+    guide: {
+      element_id: element.id,
+      element_ref: element.ref,
+      label: element.label,
+    },
   };
 }

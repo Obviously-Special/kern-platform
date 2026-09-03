@@ -1,5 +1,5 @@
-import type { ChatMessage, ChatResponse } from '@kern/contracts';
-import { capturePageContext } from './context';
+import type { ChatMessage, ChatResponse, GuideTarget } from '@kern/contracts';
+import { capturePageContext, getElementByRef } from './context';
 import { formatMarkdown } from './format';
 import { postChat, postEvent, type KernApiConfig } from './api';
 
@@ -177,13 +177,16 @@ export class KernWidget {
   /**
    * Guide mode: highlight the target element in the host page with the
    * signal-green outline and scroll it into view (doc 2 §3: "visual focus
-   * on target"). The widget lives in a shadow root; the target is in the
-   * host document.
+   * on target"). Resolves by element id first, then by the SDK's
+   * kern-el-N registry — works even when the site provides no ids.
    */
-  private guideTo(elementId: string) {
-    const el = document.getElementById(elementId);
+  private guideTo(guide: GuideTarget) {
+    const el =
+      (guide.element_id ? document.getElementById(guide.element_id) : null) ??
+      (guide.element_ref ? getElementByRef(guide.element_ref) : null);
     if (!el) return;
-    postEvent(this.config, { type: 'guide_started', data: { target_element_id: elementId } });
+    const target = guide.element_id ?? guide.element_ref ?? '';
+    postEvent(this.config, { type: 'guide_started', data: { target_element_id: target } });
     el.scrollIntoView({ behavior: 'smooth', block: 'center' });
     const previous = el.style.outline;
     el.style.outline = '3px solid #C0FF43';
@@ -191,7 +194,7 @@ export class KernWidget {
     el.style.borderRadius = el.style.borderRadius || '4px';
     window.setTimeout(() => {
       el.style.outline = previous;
-      postEvent(this.config, { type: 'guide_completed', data: { target_element_id: elementId } });
+      postEvent(this.config, { type: 'guide_completed', data: { target_element_id: target } });
     }, 5000);
   }
 
@@ -221,7 +224,7 @@ export class KernWidget {
       const res: ChatResponse = await postChat(this.config, text, this.history.slice(0, -1), pageContext);
       typing.remove();
       this.addMessage('assistant', res.reply, res.citations);
-      if (res.guide) this.guideTo(res.guide.element_id);
+      if (res.guide) this.guideTo(res.guide);
       this.history.push({ role: 'assistant', content: res.reply });
       postEvent(this.config, {
         type: 'answer_shown',
