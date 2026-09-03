@@ -3,8 +3,10 @@ import type { FastifyInstance } from 'fastify';
 import { ChatRequestSchema, ChatResponseSchema, type PageContext } from '@kern/contracts';
 import { createGateway } from '../gateway/index';
 import { inferGuideFromReply, parseGuideDirective } from '../guide';
+import { detectIntent, type IntentResult } from '../intent';
 import { getAllChunks } from '../knowledge/store';
 import { retrieve, type RetrievedChunk } from '../knowledge/retriever';
+import { storeEvent } from '../event-buffer';
 
 /**
  * The walking-skeleton chat route: page context + company knowledge in,
@@ -31,9 +33,26 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
       return reply.status(403).send({ error: 'site_id_does_not_match_authenticated_site' });
     }
 
-    const { page_context, message, history } = parsed.data;
+    const { session_id, page_context, message, history } = parsed.data;
+    const intent = detectIntent(message, page_context);
     const retrieved = retrieve(getAllChunks(), message, page_context);
-    const system = buildSystemPrompt(page_context, retrieved);
+    const system = buildSystemPrompt(page_context, retrieved, intent);
+
+    // Server-side event: intent becomes part of the analytics stream
+    storeEvent({
+      event_id: randomUUID(),
+      type: 'intent_detected',
+      session_id,
+      site_id: site.site.site_id,
+      tenant_id: site.site.tenant_id,
+      occurred_at: new Date().toISOString(),
+      data: {
+        intent_id: `int_${randomUUID().slice(0, 8)}`,
+        label: intent.label,
+        confidence: intent.confidence,
+      },
+    });
+
     const messages = [...(history ?? []), { role: 'user' as const, content: message }];
 
     try {
@@ -61,7 +80,24 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
  * v0 system prompt (doc 2 §3 interaction rules): live page context +
  * retrieved company knowledge, each excerpt carrying its source.
  */
-function buildSystemPrompt(ctx: PageContext, retrieved: RetrievedChunk[]): string {
+/** Per-intent behavior guidance for the model (doc 2 §3 agent behavior model). */
+function intentBehavior(intent: IntentResult): string {
+  switch (intent.label) {
+    case 'navigation':
+    case 'task_attempt':
+      return 'The visitor wants to DO something — prefer guiding: target the relevant element with <<GUIDE:...>> and keep prose minimal.';
+    case 'help_request':
+      return 'The visitor may be stuck — acknowledge that, be concrete, and give exactly ONE next step.';
+    case 'objection':
+      return 'The visitor raised a concern — acknowledge it, answer from COMPANY KNOWLEDGE, and give a concrete next step. If the knowledge does not cover the specific concern, say so explicitly — never fill the gap with general knowledge.';
+    case 'comparison':
+      return 'The visitor is comparing — give a short factual comparison from COMPANY KNOWLEDGE, then ONE recommendation.';
+    default:
+      return 'Answer the question directly from the current context and COMPANY KNOWLEDGE.';
+  }
+}
+
+function buildSystemPrompt(ctx: PageContext, retrieved: RetrievedChunk[], intent: IntentResult): string {
   const ctxJson = JSON.stringify(
     {
       url: ctx.url,
@@ -103,6 +139,7 @@ function buildSystemPrompt(ctx: PageContext, retrieved: RetrievedChunk[]): strin
     '- If COMPANY KNOWLEDGE covers the question, answer from it and name the source. Never invent policies, prices or facts.',
     '- When the visitor asks what is on a page or what they will see there, summarize the relevant COMPANY KNOWLEDGE concretely — include prices, options and specific facts when they are present.',
     '- Use COMPANY KNOWLEDGE directly whenever any excerpt relates to the question or the page the visitor asks about. The "does not provide" fallback applies ONLY when nothing in the knowledge relates to the question — if related knowledge exists, answer from it instead.',
+    '- NEVER present general industry practice ("standard payment systems", "typically", "usually") as this company\'s policy. If COMPANY KNOWLEDGE does not state a specific fact, say the website does not provide it — do not fill the gap with general knowledge.',
     '- If you see visible_errors, acknowledge them and give the concrete next step.',
     '- If the page context includes journey state and the visitor asks where they are or which step they are on, answer with the exact step number and total (e.g. "step 4 of 6 — Insurance").',
     '- If your answer points the visitor to a specific element on the page (a button, link, field or option they should use), end the reply with a final line containing ONLY <<GUIDE:REFERENCE>> where REFERENCE is that element\'s id or kern-el-N reference from the page context, exactly as listed.',
@@ -112,6 +149,8 @@ function buildSystemPrompt(ctx: PageContext, retrieved: RetrievedChunk[]): strin
     '',
     'CURRENT_PAGE_TYPE: ' + ctx.page_type,
     'CURRENT_URL: ' + ctx.url,
+    `DETECTED_INTENT: ${intent.label} (confidence ${intent.confidence.toFixed(2)})`,
+    intentBehavior(intent),
     '',
     'Current page context (JSON):',
     ctxJson,

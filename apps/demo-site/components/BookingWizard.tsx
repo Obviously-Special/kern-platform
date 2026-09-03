@@ -97,6 +97,9 @@ export default function BookingWizard() {
       // frequently stop at insurance selection"). Entering the step is
       // always allowed — blocking entry made step 4 unreachable.
       if (!s.insurance) return fail('Please select an insurance option to continue.');
+    }
+    if (step === 6) {
+      // Step 5's own fields validate on LEAVING step 5, never on entry
       if (!s.name) return fail('Please enter your full name.');
       if (!s.email) return fail('Please enter your email address.');
     }

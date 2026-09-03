@@ -16,7 +16,7 @@ const BASE = 'http://localhost:3000';
  */
 const NOT_PROVIDED = [
   "don't", 'do not', "doesn't", 'does not', "isn't", 'is not', "can't", 'cannot',
-  'not mention', 'not mentioned', 'no mention', 'no information',
+  'unable to', 'not mention', 'not mentioned', 'no mention', 'no information',
   'not provide', 'not provided', 'nothing in',
 ];
 
