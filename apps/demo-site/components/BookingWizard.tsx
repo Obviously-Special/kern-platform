@@ -91,8 +91,12 @@ export default function BookingWizard() {
     if (step === 3 && !s.date) return fail('Please select a date for your adventure.');
     if (step === 3 && exp && s.guests < exp.minGuests)
       return fail(`This experience requires at least ${exp.minGuests} participants.`);
-    if (step === 4 && !s.insurance) return fail('Please select an insurance option to continue.');
     if (step === 5) {
+      // Friction point BY DESIGN: leaving the insurance step without
+      // selecting an option blocks the flow (doc 1: "booking attempts
+      // frequently stop at insurance selection"). Entering the step is
+      // always allowed — blocking entry made step 4 unreachable.
+      if (!s.insurance) return fail('Please select an insurance option to continue.');
       if (!s.name) return fail('Please enter your full name.');
       if (!s.email) return fail('Please enter your email address.');
     }
