@@ -5,6 +5,12 @@ import { fetchSiteConfig, postEvent, type KernApiConfig } from './api';
 import { setSiteConfig } from './detection';
 import type { SessionId, SiteId } from '@kern/contracts';
 
+/**
+ * Bumped on every SDK release — logged at mount so "is my page running
+ * the new bundle?" is always answerable from the browser console.
+ */
+export const SDK_VERSION = '1.1.0';
+
 export interface KernConfig {
   apiUrl: string;
   siteId: SiteId;
@@ -45,6 +51,7 @@ export function initKern(config: KernConfig): KernHandle {
     };
   }
   window.__kernSdkMounted = true;
+  console.info(`[kern] sdk ${SDK_VERSION} mounted on ${config.siteId}`);
 
   let sessionId = sessionStorage.getItem('kern_session_id');
   if (!sessionId) {
