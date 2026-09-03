@@ -62,4 +62,22 @@ describe('capturePageContext — element refs for guide mode', () => {
     const ctx = capturePageContext();
     expect(ctx.visible_text.description).toBe('First paragraph of text. Second paragraph.');
   });
+
+  it('extracts entities from URL patterns and data attributes', () => {
+    window.history.pushState({}, '', '/booking/tour-42');
+    document.body.innerHTML = `<div data-product-id="paragliding-pro"><button>Continue</button></div>`;
+    const ctx = capturePageContext();
+    expect(ctx.entities).toContain('booking:tour-42');
+    expect(ctx.entities).toContain('paragliding-pro');
+  });
+
+  it('never captures elements inside the KERN widget host (shadow-DOM policy)', () => {
+    document.body.innerHTML = `
+      <button id="real-button">Real</button>
+      <div data-kern-sdk><button id="widget-button">Widget</button></div>`;
+    const ctx = capturePageContext();
+    const ids = ctx.elements.map((e) => e.id);
+    expect(ids).toContain('real-button');
+    expect(ids).not.toContain('widget-button');
+  });
 });

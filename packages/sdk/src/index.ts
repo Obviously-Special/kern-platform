@@ -1,5 +1,6 @@
 import { capturePageContext } from './context';
 import { KernWidget } from './widget';
+import { observePage } from './observer';
 import { fetchSiteConfig, postEvent, type KernApiConfig } from './api';
 import { setSiteConfig } from './detection';
 import type { SessionId, SiteId } from '@kern/contracts';
@@ -77,15 +78,15 @@ export function initKern(config: KernConfig): KernHandle {
     widget.refreshPageLabel();
   });
 
-  // v0 SPA observation: poll for route changes, emit page_view on change
-  // and journey_step whenever the detected step changes
+  // SPA observation: event-driven (pushState/popstate + DOM mutations) —
+  // route changes emit page_view, any change re-detects the journey step
   let lastUrl = window.location.href;
   let lastStep = capturePageContext().journey?.current_step ?? null;
-  const poller = window.setInterval(() => {
-    if (window.location.href !== lastUrl) {
+
+  const onPageChange = (change: 'route' | 'dom') => {
+    if (change === 'route' && window.location.href !== lastUrl) {
       lastUrl = window.location.href;
       lastStep = null; // re-detect on the new page
-      widget.refreshPageLabel();
       postEvent(apiConfig, {
         type: 'page_view',
         data: {
@@ -96,6 +97,7 @@ export function initKern(config: KernConfig): KernHandle {
         },
       });
     }
+    widget.refreshPageLabel();
     const journey = capturePageContext().journey;
     const step = journey?.current_step ?? null;
     if (step !== null && step !== lastStep) {
@@ -111,13 +113,15 @@ export function initKern(config: KernConfig): KernHandle {
       });
       lastStep = step;
     }
-  }, 1000);
+  };
+
+  const stopObserving = observePage(onPageChange);
 
   return {
     sessionId,
     capture: capturePageContext,
     destroy: () => {
-      window.clearInterval(poller);
+      stopObserving();
       widget.destroy();
       window.__kernSdkMounted = false;
     },

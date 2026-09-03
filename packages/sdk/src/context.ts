@@ -54,6 +54,35 @@ function elementLabel(el: HTMLElement): string | undefined {
   return inner ? inner.slice(0, 80) : undefined;
 }
 
+/**
+ * Entity extraction (doc 3 §5.1 "Entities"): product/plan/booking ids
+ * from URL patterns, data-* attributes and entity inputs. Generic
+ * heuristics only — per-site patterns belong in the page map.
+ */
+function extractEntities(limit = 10): string[] {
+  const out = new Set<string>();
+
+  const m = window.location.pathname.match(/\/(product|plan|booking|order|service|tour)\/([^/?#]+)/i);
+  if (m) out.add(`${m[1]!.toLowerCase()}:${m[2]}`);
+
+  const attrSelectors = ['data-product-id', 'data-plan-id', 'data-booking-id', 'data-entity-id'];
+  for (const selector of attrSelectors) {
+    document.querySelectorAll(`[${selector}]`).forEach((el) => {
+      const v = el.getAttribute(selector);
+      if (v) out.add(v.slice(0, 200));
+    });
+  }
+
+  const entityInputs = document.querySelectorAll<HTMLInputElement | HTMLSelectElement>(
+    'input[name="product_id"], input[name="plan_id"], select[name="product_id"], select[name="plan_id"]',
+  );
+  entityInputs.forEach((el) => {
+    if (el.value) out.add(el.value.slice(0, 200));
+  });
+
+  return [...out].slice(0, limit);
+}
+
 /** Buttons, links and inputs a visitor can actually act on. */
 function selectRelevantElements(limit = 40): PageElement[] {
   const nodes = document.querySelectorAll<HTMLElement>(
@@ -63,6 +92,10 @@ function selectRelevantElements(limit = 40): PageElement[] {
   const out: PageElement[] = [];
   for (const el of nodes) {
     if (!isVisible(el)) continue;
+    // Shadow-DOM policy: the KERN widget host is never captured. Customer
+    // shadow roots are not pierced in v1 (querySelectorAll stays outside
+    // them) — per-site piercing arrives via page-map selectors.
+    if (el.closest?.('[data-kern-sdk]')) continue;
     const ref = `kern-el-${out.length}`;
     elementRegistry.set(ref, el);
     out.push({
@@ -117,6 +150,7 @@ export function capturePageContext(): PageContext {
       .slice(0, 600) || undefined;
   const errors = collectVisibleErrors();
   const elements = selectRelevantElements();
+  const entities = extractEntities();
   const journey = detectJourneyState(route, document) ?? undefined;
 
   return {
@@ -126,7 +160,7 @@ export function capturePageContext(): PageContext {
     visible_text: { title, headings, description },
     elements,
     errors,
-    entities: [],
+    entities,
     journey,
     state_hash: hashState([url, errors.join('|'), headings.join('|'), journey ? `${journey.current_step}` : '']),
     timestamp: new Date().toISOString(),

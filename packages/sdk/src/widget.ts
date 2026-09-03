@@ -82,6 +82,9 @@ export class KernWidget {
   constructor(private config: KernApiConfig) {
     this.host = document.createElement('div');
     this.host.style.cssText = 'all: initial;';
+    // Marks the host so context capture and the DOM observer ignore it —
+    // the widget is never part of the page the model sees
+    this.host.setAttribute('data-kern-sdk', '');
     (document.body || document.documentElement).appendChild(this.host);
     this.root = this.host.attachShadow({ mode: 'open' });
     const style = document.createElement('style');

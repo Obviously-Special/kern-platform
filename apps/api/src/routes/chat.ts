@@ -4,6 +4,7 @@ import { ChatRequestSchema, ChatResponseSchema, type PageContext } from '@kern/c
 import { createGateway } from '../gateway/index';
 import { inferGuideFromReply, parseGuideDirective } from '../guide';
 import { detectIntent, type IntentResult } from '../intent';
+import { extractMemories, recall, remember } from '../memory';
 import { getAllChunks } from '../knowledge/store';
 import { retrieve, type RetrievedChunk } from '../knowledge/retriever';
 import { storeEvent } from '../event-buffer';
@@ -36,7 +37,7 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
     const { session_id, page_context, message, history } = parsed.data;
     const intent = detectIntent(message, page_context);
     const retrieved = retrieve(getAllChunks(), message, page_context);
-    const system = buildSystemPrompt(page_context, retrieved, intent);
+    const system = buildSystemPrompt(page_context, retrieved, intent, recall(session_id));
 
     // Server-side event: intent becomes part of the analytics stream
     storeEvent({
@@ -61,10 +62,12 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
         app.log.info({ ...result.usage, site_id: site.site.site_id }, 'gateway call');
       }
       const parsed = parseGuideDirective(result.text, page_context.elements);
-      const guide = parsed.guide ?? inferGuideFromReply(parsed.reply, page_context.elements);
+      const { reply: finalReply, facts } = extractMemories(parsed.reply);
+      remember(session_id, facts);
+      const guide = parsed.guide ?? inferGuideFromReply(finalReply, page_context.elements);
       return ChatResponseSchema.parse({
         message_id: randomUUID(),
-        reply: parsed.reply,
+        reply: finalReply,
         mode: guide ? 'guide' : 'answer',
         citations: buildCitations(retrieved),
         guide,
@@ -97,7 +100,12 @@ function intentBehavior(intent: IntentResult): string {
   }
 }
 
-function buildSystemPrompt(ctx: PageContext, retrieved: RetrievedChunk[], intent: IntentResult): string {
+function buildSystemPrompt(
+  ctx: PageContext,
+  retrieved: RetrievedChunk[],
+  intent: IntentResult,
+  sessionFacts: string[],
+): string {
   const ctxJson = JSON.stringify(
     {
       url: ctx.url,
@@ -114,6 +122,11 @@ function buildSystemPrompt(ctx: PageContext, retrieved: RetrievedChunk[], intent
     null,
     0,
   );
+
+  const memorySection =
+    sessionFacts.length > 0
+      ? ['', 'SESSION MEMORY (facts from earlier in this conversation — use them; do not make the visitor repeat themselves):', ...sessionFacts.map((f) => `- ${f}`)].join('\n')
+      : '';
 
   const knowledgeSection =
     retrieved.length > 0
@@ -143,6 +156,7 @@ function buildSystemPrompt(ctx: PageContext, retrieved: RetrievedChunk[], intent
     '- If you see visible_errors, acknowledge them and give the concrete next step.',
     '- If the page context includes journey state and the visitor asks where they are or which step they are on, answer with the exact step number and total (e.g. "step 4 of 6 — Insurance").',
     '- If your answer points the visitor to a specific element on the page (a button, link, field or option they should use), end the reply with a final line containing ONLY <<GUIDE:REFERENCE>> where REFERENCE is that element\'s id or kern-el-N reference from the page context, exactly as listed.',
+    '- You may remember up to three session facts the visitor should not have to repeat (e.g. chosen experience, group size, dates) by appending lines like <<REMEMBER:guest is booking the Eiger hike for 2>> at the very end of your reply, after any <<GUIDE>> line. Never remember sensitive data (payment details, emails, names).',
     '- When the visitor asks to be shown a button, link or field BY NAME, target the element whose label matches that name most closely — prefer the one inside the current step or current view. If several elements share the name, pick the most specific match; never guess when the labels differ.',
     '- Use plain text with light emphasis only (e.g. **important**). No headings, no tables, no markdown links — the widget renders a compact chat.',
     "- Match the visitor's language.",
@@ -154,6 +168,7 @@ function buildSystemPrompt(ctx: PageContext, retrieved: RetrievedChunk[], intent
     '',
     'Current page context (JSON):',
     ctxJson,
+    memorySection,
     knowledgeSection,
   ].join('\n');
 }
