@@ -54,13 +54,18 @@ export const OUTPUT_JSON_SCHEMA = {
       items: {
         type: 'object',
         properties: {
-          tool: { type: 'string' },
+          tool: {
+            type: 'string',
+            description: 'One of: book_appointment, fill_field, select_option, click_element',
+          },
           // args is a JSON-encoded STRING — strict mode requires closed
           // objects, and the broker validates args against per-tool
-          // contracts anyway. Example: "{\\"ref\\":\\"kern-el-0\\",\\"value\\":\\"Max\\"}"
+          // contracts anyway. The string must contain a valid JSON object
+          // with inner quotes escaped. Example for book_appointment:
+          // "{\\"experience\\":\\"Eiger Panorama Hike\\",\\"date\\":\\"2026-09-12\\",\\"guests\\":2,\\"name\\":\\"Max Mustermann\\",\\"email\\":\\"max@example.com\\"}"
           args: {
             type: 'string',
-            description: 'JSON string of the tool arguments, e.g. {"ref":"kern-el-0","value":"Max"}',
+            description: 'A JSON-encoded string of the tool arguments — the string itself is a JSON object with inner quotes escaped, e.g. for fill_field: "{\\"ref\\":\\"kern-el-0\\",\\"value\\":\\"Max\\"}"',
           },
         },
         required: ['tool', 'args'],

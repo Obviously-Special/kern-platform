@@ -5,7 +5,8 @@ import { createGateway } from '../gateway/index';
 import { inferGuideFromReply } from '../guide';
 import { detectIntent, type IntentResult } from '../intent';
 import { recall, remember } from '../memory';
-import { inferFillAction, processProposals, toolsPromptSection } from '../actions/broker';
+import { inferBookingAction, inferFillAction, processProposals, toolsPromptSection, type ActionProposal } from '../actions/broker';
+import { getSitePageMap } from '../knowledge/page-map';
 import { getAllChunks } from '../knowledge/store';
 import { retrieve, type RetrievedChunk } from '../knowledge/retriever';
 import { storeEvent } from '../event-buffer';
@@ -74,23 +75,35 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
         inferGuideFromReply(output.reply, page_context.elements);
 
       // Actions: structured proposals -> tool contracts -> policy decisions.
-      // The fill fallback stays as the safety net for missed proposals —
-      // the confirmation card and broker validation still gate execution.
-      const proposals = output.actions.map((a) => ({
+      // Deterministic fallbacks (fill + booking) run whenever ZERO actions
+      // survive — whether the model proposed nothing or every proposal was
+      // rejected. The confirmation card and broker validation still gate
+      // execution; inference never bypasses them.
+      const siteMap = getSitePageMap(site.site.site_id);
+      const run = (proposals: ActionProposal[]) =>
+        processProposals({
+          siteId: site.site.site_id,
+          sessionId: session_id,
+          tenantId: site.site.tenant_id,
+          proposals,
+          contextElements: page_context.elements,
+        });
+
+      const modelProposals = output.actions.map((a) => ({
         tool: a.tool,
         args: parseJsonArgs(a.args),
       }));
-      if (proposals.length === 0) {
-        const inferred = inferFillAction(message, output.reply, page_context.elements);
-        if (inferred) proposals.push(inferred);
+      let { actions, rejected } = run(modelProposals);
+
+      if (actions.length === 0) {
+        const inferred =
+          inferFillAction(message, output.reply, page_context.elements) ??
+          inferBookingAction(message, output.reply, siteMap);
+        if (inferred) ({ actions, rejected } = run([inferred]));
       }
-      const actions = processProposals({
-        siteId: site.site.site_id,
-        sessionId: session_id,
-        tenantId: site.site.tenant_id,
-        proposals,
-        contextElements: page_context.elements,
-      });
+      if (rejected.length > 0) {
+        app.log.info({ session_id, rejected }, 'action proposals rejected');
+      }
 
       return ChatResponseSchema.parse({
         message_id: randomUUID(),
@@ -134,7 +147,7 @@ function intentBehavior(intent: IntentResult): string {
   switch (intent.label) {
     case 'navigation':
     case 'task_attempt':
-      return 'The visitor wants to DO something — prefer guiding: target the relevant element with <<GUIDE:...>> and keep prose minimal.';
+      return 'The visitor wants to DO something — complete it through "actions": when every required argument of a tool is present, propose the matching tool; only when information is missing, guide to the next element and ask for exactly what is missing. Keep prose minimal. Set "guide" only to an element your reply actually refers to.';
     case 'help_request':
       return 'The visitor may be stuck — acknowledge that, be concrete, and give exactly ONE next step.';
     case 'objection':
@@ -164,6 +177,14 @@ function buildSystemPrompt(
         label: e.label,
       })),
       visible_errors: ctx.errors,
+      journey: ctx.journey
+        ? {
+            journey_id: ctx.journey.journey_id,
+            current_step: ctx.journey.current_step,
+            total_steps: ctx.journey.total_steps,
+            current_label: ctx.journey.current_label,
+          }
+        : undefined,
     },
     null,
     0,
@@ -195,7 +216,10 @@ function buildSystemPrompt(
     '- Prefer moving the visitor forward over long explanations.',
     '- When your answer refers to a specific page element (a button, link, field or option), set "guide": {"target": "<id or kern-el-N ref from the page context>"} to the element your answer is about. Otherwise set "guide": null.',
     '- When the visitor asks to be shown a button, link or field BY NAME, choose as the guide target the element whose label matches that name most closely — prefer the one inside the current step or current view. If several elements share the name, pick the most specific match; never guess when the labels differ.',
-    '- To complete the visitor\'s task, list proposed actions in "actions" using ONLY the tools listed below, with "args" containing refs from the page context. Use [] when no action fits. When EVERY required argument for a tool is present in the conversation, propose it — do not keep discussing details instead of proposing. If a tool needs information you do not have (e.g. the visitor\'s name or email), ASK for it in your reply instead of inventing it. Never propose actions for passwords, payment details or account deletion.',
+    '- Proposing an action is always safe: NOTHING executes until the visitor confirms the on-screen proposal card. "actions" is how you get things done — prose alone never completes a task.',
+    '- When EVERY required argument of a tool is present in the conversation, PROPOSE the tool instead of describing or discussing it, and say briefly in "reply" what you are proposing.',
+    '- book_appointment creates the WHOLE booking in one step — it replaces walking the wizard, so propose it whenever the visitor supplied all required details, even while the page shows a mid-flow step. Map the visitor\'s words to canonical names from the page context or COMPANY KNOWLEDGE ("Eiger hike" → the listed experience name) and dates to YYYY-MM-DD — that mapping is not inventing.',
+    '- If a required argument is truly absent, ASK for exactly that one thing in "reply" and propose nothing until provided — never invent a name, email or date. Use [] only when no listed tool serves the request. Never propose actions for passwords, payment details or account deletion.',
     '- Put up to three session facts the visitor should not have to repeat into "memories" (e.g. "guest is booking the Eiger hike for 2"). Never store names, emails or payment details.',
     '- Only reference page elements that are listed in the context. Never invent buttons or links.',
     '- If COMPANY KNOWLEDGE covers the question, answer from it and name the source. Never invent policies, prices or facts.',

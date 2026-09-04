@@ -16,6 +16,8 @@ export interface AuditEntry {
   decision: 'allowed' | 'confirmation_required' | 'denied';
   args: Record<string, unknown>;
   proposed_at: string;
+  /** Why a proposal was rejected — silent drops are invisible drops. */
+  reject_reason?: string;
   result?: 'succeeded' | 'failed' | 'cancelled';
   error?: string;
   evidence?: string;

@@ -16,6 +16,19 @@ export interface SiteFact {
 }
 
 /**
+ * Canonical experience catalog — the per-site mapping from visitor
+ * phrasing ("the Eiger hike") to the canonical names the booking system
+ * knows ("Eiger Panorama Hike"). This is CUSTOMER CONFIGURATION
+ * (doc 3 §6.1): real customers define their own catalog during
+ * onboarding. The deterministic booking fallback only maps aliases
+ * declared here — never guesses.
+ */
+export interface ExperienceEntry {
+  name: string;
+  aliases: string[];
+}
+
+/**
  * Journey declaration — the per-site bridge for step detection
  * (doc 3 §6.1 "context mapping: current step"). Steps + optional DOM
  * hints travel to the SDK via /site-config; no customer code in the core.
@@ -42,6 +55,8 @@ export interface SitePageMap {
   facts: SiteFact[];
   /** Multi-step journeys this site exposes. */
   journeys: SiteJourney[];
+  /** Canonical bookable experiences and the visitor phrasings that map to them. */
+  experiences: ExperienceEntry[];
 }
 
 export const demoSiteMap: SitePageMap = {
@@ -107,6 +122,12 @@ export const demoSiteMap: SitePageMap = {
         activeClass: 'bg-pine-700',
       },
     },
+  ],
+  experiences: [
+    { name: 'Eiger Panorama Hike', aliases: ['eiger hike', 'eiger panorama', 'the eiger'] },
+    { name: 'Tandem Paragliding', aliases: ['paragliding', 'paraglide', 'tandem flight'] },
+    { name: 'E-Mountain Bike Tour', aliases: ['e-bike', 'e bike', 'mountain bike', 'bike tour'] },
+    { name: 'Intro to Rock Climbing', aliases: ['climbing', 'rock climbing', 'climbing course'] },
   ],
 };
 

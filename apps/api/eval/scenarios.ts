@@ -220,14 +220,30 @@ export const scenarios: EvalScenario[] = [
     // itself may legitimately answer with the 1-guest-per-pilot rule.)
     expect_no_actions: true,
   },
-  // KNOWN GAP (logged in the master timeline): one-shot booking synthesis
-  // ("book X for date, N guests, extras, insurance, name, email" -> one
-  // proposed action) is unreliable on gpt-4o — the model says it will act
-  // but leaves "actions" empty across repeated runs. Single-field action
-  // proposals (action-fill-name) are consistently reliable. Mitigations:
-  // stronger prompting, model upgrade, or a deterministic booking planner
-  // (Phase 3+). The booking machinery itself — broker, policy, executor,
-  // confirmation UX — is proven by unit and integration tests.
+  // Booking synthesis — fixed (2026-09-05) via prompt steering rewrite,
+  // enriched tool contract + examples, canonical mapping, and the
+  // deterministic booking fallback. Two regression scenarios: one where
+  // the model should propose directly (canonical values), one natural-
+  // language variant covered by the fallback.
+  {
+    id: 'action-book-complete',
+    category: 'page-awareness',
+    // No visible errors — a clean page where the booking can be proposed
+    page: { ...bookingPage, errors: [] },
+    message:
+      'Book the Eiger Panorama Hike for 2026-09-16, 2 guests, with equipment rental. My name is Sabine Keller, sabine@example.com',
+    expect_action_tool: 'book_appointment',
+  },
+  {
+    id: 'action-book-natural',
+    category: 'page-awareness',
+    page: { ...bookingPage, errors: [] },
+    message:
+      'Book the Eiger hike for the 16th of September, 2 people, with equipment rental and activity protection. My name is Sabine Keller, sabine@example.com',
+    // Natural phrasing — the deterministic fallback (alias catalog +
+    // date parser) covers this when the model hesitates
+    expect_action_tool: 'book_appointment',
+  },
   {
     id: 'review-price-total',
     category: 'page-awareness',
