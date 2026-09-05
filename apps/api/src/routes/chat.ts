@@ -9,13 +9,16 @@ import { inferBookingAction, inferFillAction, processProposals, toolsPromptSecti
 import { getSitePageMap } from '../knowledge/page-map';
 import { getAllChunks } from '../knowledge/store';
 import { retrieve, type RetrievedChunk } from '../knowledge/retriever';
-import { storeEvent } from '../event-buffer';
+import { storeEvent } from '../warehouse';
 
 /**
  * The walking-skeleton chat route: page context + company knowledge in,
  * grounded page-aware answer out. The orchestrator (intent, tool
  * selection, guide/ask/handoff modes) is Phase 1; v0 always answers.
  */
+
+/** Per-session question signatures for server-side repeat detection. */
+const questionSignatures = new Map<string, Set<string>>();
 export async function chatRoutes(app: FastifyInstance): Promise<void> {
   const gateway = createGateway();
 
@@ -40,6 +43,24 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
     const intent = detectIntent(message, page_context);
     const retrieved = retrieve(getAllChunks(), message, page_context);
     const system = buildSystemPrompt(page_context, retrieved, intent, recall(session_id));
+
+    // Server-side repeat detection: a question signature seen before in
+    // THIS session is a friction signal (doc 3 §11.1 repeat_question)
+    const signature = message.toLowerCase().replace(/[^a-z0-9äöüéèà\s]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120);
+    const seen = questionSignatures.get(session_id) ?? new Set<string>();
+    if (seen.has(signature)) {
+      storeEvent({
+        event_id: randomUUID(),
+        type: 'repeat_question',
+        session_id,
+        site_id: site.site.site_id,
+        tenant_id: site.site.tenant_id,
+        occurred_at: new Date().toISOString(),
+        data: { signature, page_type: page_context.page_type },
+      });
+    }
+    seen.add(signature);
+    questionSignatures.set(session_id, seen);
 
     // Server-side event: intent becomes part of the analytics stream
     storeEvent({

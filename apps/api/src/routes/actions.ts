@@ -6,7 +6,7 @@ import { executeApiTool } from '../actions/executors';
 import { getTool } from '../actions/registry';
 import { evaluatePolicy } from '../policy/engine';
 import { getPolicy } from '../policy/service';
-import { storeEvent } from '../event-buffer';
+import { storeEvent } from '../warehouse';
 
 /**
  * Action execution endpoints (Phase 2). The ledger is
@@ -55,6 +55,21 @@ export async function actionRoutes(app: FastifyInstance): Promise<void> {
           tenant_id: entry.tenant_id,
           occurred_at: new Date().toISOString(),
           data: { action_id: entry.action_id, ...(result.error ? { error: result.error } : {}) },
+        });
+      }
+      if (resolved && result.ok && entry.tool === 'book_appointment') {
+        // Business outcome closes the loop: question -> intervention ->
+        // completion -> conversion (doc 3 §11.3)
+        const data = result.data as Record<string, unknown> | undefined;
+        const ref = data && typeof data.booking_ref === 'string' ? data.booking_ref : undefined;
+        storeEvent({
+          event_id: randomUUID(),
+          type: 'booking',
+          session_id: entry.session_id,
+          site_id: entry.site_id,
+          tenant_id: entry.tenant_id,
+          occurred_at: new Date().toISOString(),
+          data: { ...(ref ? { reference: ref } : {}), via_assistant: true },
         });
       }
       return { action_id: entry.action_id, disposition: 'executed', result };

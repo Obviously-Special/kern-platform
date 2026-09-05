@@ -3,7 +3,11 @@ import type { PageContext, PermissionLevel } from '@kern/contracts';
 import { syncKnowledge } from '../knowledge/sync';
 import { getAllChunks, stats } from '../knowledge/store';
 import { checkAction } from '../policy/service';
-import { eventCount } from '../event-buffer';
+import { conversations, eventCount, journeyFunnels, metrics } from '../warehouse';
+import { detectFriction } from '../friction';
+import { runSimulation } from '../simulator';
+import { listAudit } from '../actions/audit';
+import { getSiteById } from '../tenants/service';
 
 /**
  * v0 admin endpoints — dev aids, clearly temporary.
@@ -65,5 +69,42 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       return { error: 'usage: /admin/policy/check?site_id=…&level=read|guide|reversible|transactional|sensitive' };
     }
     return { site_id, level, decision: checkAction(site_id, level as PermissionLevel) };
+  });
+
+  // ---- Phase 3: analytics console endpoints (dev, no auth — console v1) ----
+
+  app.get('/admin/metrics', async () => {
+    const demo = getSiteById('demo-bergblick');
+    if (!demo) return { error: 'demo site not seeded' };
+    return { site_id: demo.site.site_id, ...metrics(demo.site.tenant_id, demo.site.site_id) };
+  });
+
+  app.get('/admin/friction', async () => {
+    const demo = getSiteById('demo-bergblick');
+    if (!demo) return { error: 'demo site not seeded' };
+    return detectFriction(demo.site.tenant_id, demo.site.site_id);
+  });
+
+  app.get('/admin/conversations', async (req) => {
+    const { limit } = (req.query ?? {}) as { limit?: string };
+    const demo = getSiteById('demo-bergblick');
+    if (!demo) return { error: 'demo site not seeded' };
+    return conversations(demo.site.tenant_id, demo.site.site_id, Number(limit ?? 10));
+  });
+
+  app.get('/admin/journeys', async () => {
+    const demo = getSiteById('demo-bergblick');
+    if (!demo) return { error: 'demo site not seeded' };
+    return journeyFunnels(demo.site.tenant_id, demo.site.site_id);
+  });
+
+  app.get('/admin/actions', async () => {
+    return listAudit();
+  });
+
+  app.post('/admin/simulator/run', async () => {
+    const demo = getSiteById('demo-bergblick');
+    if (!demo) return { error: 'demo site not seeded' };
+    return runSimulation(demo.site.tenant_id, demo.site.site_id);
   });
 }

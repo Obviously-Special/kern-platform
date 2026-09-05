@@ -1,0 +1,50 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-carbon: #111111;
+  --color-bone: #f6f4ef;
+  --color-paper: #ffffff;
+  --color-mist: #d9d6cf;
+  --color-signal: #c0ff43;
+  --color-info: #4b7eff;
+  --color-critical: #ff6060;
+}
+
+body {
+  background: var(--color-bone);
+  color: var(--color-carbon);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Hairline borders, no shadows — doc 2: "prefer 1px borders and subtle surface contrast" */
+.card {
+  background: var(--color-paper);
+  border: 1px solid var(--color-mist);
+  border-radius: 16px;
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Single orchestrated reveal on load; everything else answers actions */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.reveal {
+  animation: rise 420ms ease-out both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    animation: none;
+  }
+}

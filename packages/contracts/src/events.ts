@@ -114,6 +114,7 @@ export type JourneyStepEventData = z.infer<typeof JourneyStepEventDataSchema>;
 
 export const RepeatQuestionEventDataSchema = z.object({
   signature: z.string().min(1), // e.g. 'billing.change_payment_method'
+  page_type: z.string().optional(), // where the repetition happened
 });
 export type RepeatQuestionEventData = z.infer<typeof RepeatQuestionEventDataSchema>;
 
@@ -143,6 +144,8 @@ export const BusinessEventDataSchema = z.object({
   value: z.number().optional(),
   currency: z.string().length(3).optional(),
   reference: z.string().max(200).optional(),
+  /** True when the assistant's intervention produced the outcome. */
+  via_assistant: z.boolean().optional(),
 });
 export type BusinessEventData = z.infer<typeof BusinessEventDataSchema>;
 

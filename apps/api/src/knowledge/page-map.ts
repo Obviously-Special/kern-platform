@@ -38,6 +38,8 @@ export interface SiteJourney {
   /** Route prefix the journey applies to, e.g. "/booking". */
   pathPrefix: string;
   steps: string[];
+  /** Average value of completing this journey (CHF) — feeds the friction score (doc 3 §11.2). */
+  valueChf?: number;
   hints?: {
     /** Selector for the step-indicator container. */
     stepIndicator?: string;
@@ -115,6 +117,7 @@ export const demoSiteMap: SitePageMap = {
       id: 'booking',
       pathPrefix: '/booking',
       steps: ['experience', 'date', 'extras', 'insurance', 'details', 'review'],
+      valueChf: 200, // average booking value — customer-config
       hints: {
         // The demo wizard's step indicator (fixed to use aria-current too —
         // the hint is what a real customer site would need)

@@ -89,6 +89,7 @@ export function initKern(config: KernConfig): KernHandle {
   // route changes emit page_view, any change re-detects the journey step
   let lastUrl = window.location.href;
   let lastStep = capturePageContext().journey?.current_step ?? null;
+  let lastErrorHash: string | null = null;
 
   const onPageChange = (change: 'route' | 'dom') => {
     if (change === 'route' && window.location.href !== lastUrl) {
@@ -105,7 +106,8 @@ export function initKern(config: KernConfig): KernHandle {
       });
     }
     widget.refreshPageLabel();
-    const journey = capturePageContext().journey;
+    const ctx = capturePageContext();
+    const journey = ctx.journey;
     const step = journey?.current_step ?? null;
     if (step !== null && step !== lastStep) {
       postEvent(apiConfig, {
@@ -119,6 +121,14 @@ export function initKern(config: KernConfig): KernHandle {
         },
       });
       lastStep = step;
+    }
+    // Visible validation errors are friction signals (deduped per state)
+    if (ctx.errors.length > 0 && ctx.state_hash !== lastErrorHash) {
+      lastErrorHash = ctx.state_hash;
+      postEvent(apiConfig, {
+        type: 'error_seen',
+        data: { message: ctx.errors[0] },
+      });
     }
   };
 

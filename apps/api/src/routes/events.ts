@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { EventEnvelopeSchema } from '@kern/contracts';
-import { storeEvent } from '../event-buffer';
+import { storeEvent } from '../warehouse';
 
 export async function eventRoutes(app: FastifyInstance): Promise<void> {
   app.post('/events', async (req, reply) => {
