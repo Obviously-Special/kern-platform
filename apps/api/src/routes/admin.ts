@@ -10,9 +10,11 @@ import { listAudit } from '../actions/audit';
 import { getSiteById } from '../tenants/service';
 
 /**
- * v0 admin endpoints — dev aids, clearly temporary.
- * NOTE: no auth yet (arrives with the tenant service in Phase 0). These
- * must never be exposed publicly before then.
+ * v0 admin endpoints — DEVELOPMENT-ONLY and UNAUTHENTICATED.
+ * This backend is a local development implementation, not a hardened
+ * internet-facing deployment; a production deployment would require
+ * authenticated admin access and authorization controls. These routes
+ * must never be exposed publicly as-is.
  */
 export async function adminRoutes(app: FastifyInstance): Promise<void> {
   app.post('/admin/knowledge/sync', async () => {

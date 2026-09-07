@@ -50,15 +50,3 @@ loaded before the fix; Next dev dynamic-import chunk cached).
    that capture runs before the dl is in the DOM (capture happens at
    message-send — user has the review visible, so unlikely, but verify
    with the debug log)
-
----
-
-## BUG-002 — (template)
-
-- **Status:** OPEN
-- **Severity:**
-- **Reported:**
-
-**Symptom:**
-**What we verified:**
-**Next debugging steps:**

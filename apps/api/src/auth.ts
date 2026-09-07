@@ -9,10 +9,14 @@ declare module 'fastify' {
 }
 
 /**
- * Site-key auth (doc 3 §5: "Edge/API gateway: auth, rate limits, tenant
- * routing, request validation"). Every SDK request carries the site's key;
- * the hook resolves it to the site record. Health and /admin are open
- * (dev only — admin auth arrives with the console/RBAC layer).
+ * Site-key identification & tenant routing. Every SDK request carries the
+ * site's key; the hook resolves it to the site record, and tenant IDs are
+ * stamped server-side from that record (never trusted from the client).
+ * The browser holds the key, so it is NOT a confidential credential —
+ * a production deployment would additionally need origin controls, rate
+ * limiting, and stronger session boundaries. Health and /admin are open;
+ * /admin is development-only and must not be exposed publicly without
+ * authentication and authorization controls.
  */
 export async function siteAuthHook(req: FastifyRequest, reply: FastifyReply): Promise<void> {
   const url = req.url;

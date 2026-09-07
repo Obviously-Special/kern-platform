@@ -2,12 +2,17 @@ import { randomUUID, timingSafeEqual } from 'node:crypto';
 import type { Site, Tenant } from '@kern/contracts';
 
 /**
- * Tenant service v0 — in-memory (like the event buffer).
+ * Tenant service v0 — in-memory (like the warehouse).
  * Replaced by the persistent multi-tenant store in the productized phase;
- * the API contract (create/read, key-based site auth) is already final.
+ * the API contract (create/read, key-based site identification) is already final.
  *
- * Site keys are credentials: they live here, never in the shared event
- * schema, and never in model context (doc 3 §6.2).
+ * Site keys identify a site and route requests to its tenant. Because
+ * the browser SDK holds them, they are NOT confidential credentials —
+ * a production deployment would additionally require origin controls,
+ * rate limiting, and stronger session boundaries. Tenant IDs are always
+ * stamped server-side from the authenticated site record, never trusted
+ * from the client. Keys never enter the shared event schema or model
+ * context.
  */
 export interface SiteRecord {
   site: Site;
