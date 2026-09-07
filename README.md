@@ -112,7 +112,7 @@ Then: open the demo site, walk the booking flow, and ask the assistant questions
 - The knowledge layer is lexical, not vector-based.
 - One-shot multi-step booking synthesis from natural language is partially covered by a deterministic fallback; the model layer itself is inconsistent there (see `apps/api/eval/scenarios.ts` for the documented case).
 - No hosted demo; the demo site is designed to run locally.
-- See [BUGS.md](BUGS.md) for known issues.
+- See [BUGS.md](BUGS.md) for issue tracking and bug-reporting guidance.
 
 ## Scripts
 
